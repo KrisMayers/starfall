@@ -1,0 +1,28 @@
+:root {
+  color-scheme: dark;
+  font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+  background: #05060d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 10% 15%, rgba(43, 93, 122, 0.25), transparent 28%),
+    linear-gradient(135deg, #05060d 0%, #080915 48%, #111016 100%);
+}
+
+canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  image-rendering: pixelated;
+  user-select: none;
+}
