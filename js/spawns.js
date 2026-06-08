@@ -15,7 +15,7 @@
   function spawnEnemy() {
     const play = state.view.play;
     const kind = pickEnemyKind();
-    const size = kind.size * (0.85 + Math.random() * 0.35);
+    const size = state.game.player.w * kind.sizeScale;
     const drift = (Math.random() - 0.5) * (55 + state.game.level * 5);
 
     state.enemies.push({

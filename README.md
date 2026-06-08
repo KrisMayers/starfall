@@ -40,8 +40,11 @@ Good first tuning spots:
 - Enemy odds: `pickEnemyKind()` in `js/spawns.js`
 - Enemy stats: `enemyKinds` in `js/config.js`
 - Boss health/speed: `saucerKind` in `js/config.js` and `spawnBoss()` in `js/spawns.js`
+- Cooldown pool: `BASE_COOLDOWN_CAPACITY` and `SHOT_COOLDOWN_COST` in `js/config.js`
+- Upgrade caps and combo missiles: `MAX_COOLDOWN_UPGRADES`, `MAX_SPREAD_LEVEL`, and `COMBO_MISSILE_*` in `js/config.js`
 - Level timing: `levelDuration()` in `js/levels.js`
 - Level intensity: `spawnCadence()` and `enemySpeed()` in `js/levels.js`
-- Enemy death power-up odds: `maybeDropEnemyReward()` in `js/update.js`
-- Shield layers and combo rules: `js/update.js`
-- Shield rings and combo display: `js/draw.js`
+- Enemy death power-up odds and maxed-upgrade filtering: `maybeDropEnemyReward()` and `canSpawnReward()` in `js/update.js`
+- Power-up collection effects: `collectPowerup()` in `js/update.js`
+- Shield layers, combo rules, and seeker missiles: `js/update.js`
+- Shield rings, combo display, and upgrade indicators: `js/draw.js`

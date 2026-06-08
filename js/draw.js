@@ -115,15 +115,20 @@
     ctx.save();
     ctx.shadowBlur = 12;
     for (const projectile of state.projectiles) {
-      ctx.shadowColor = projectile.hostile ? "#ffb84d" : "#8efbff";
+      ctx.shadowColor = projectile.seeker ? "#ffe45c" : projectile.hostile ? "#ffb84d" : "#8efbff";
       const angle = Math.atan2(projectile.vx || 0, -projectile.vy || 1);
       ctx.save();
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(angle);
-      ctx.fillStyle = projectile.hostile ? "#fff0a8" : "#eaffff";
+      ctx.fillStyle = projectile.seeker ? "#fff5a8" : projectile.hostile ? "#fff0a8" : "#eaffff";
       ctx.fillRect(-projectile.w / 2, -projectile.h / 2, projectile.w, projectile.h);
-      ctx.fillStyle = projectile.hostile ? "#ff8e3c" : "#63e7ff";
+      ctx.fillStyle = projectile.seeker ? "#ff4b5d" : projectile.hostile ? "#ff8e3c" : "#63e7ff";
       ctx.fillRect(-2, -projectile.h / 2, 4, projectile.h);
+      if (projectile.seeker) {
+        ctx.fillStyle = "#ffe45c";
+        ctx.fillRect(-projectile.w / 2 - 4, projectile.h * 0.18, 4, 3);
+        ctx.fillRect(projectile.w / 2, projectile.h * 0.18, 4, 3);
+      }
       ctx.restore();
     }
     ctx.restore();
@@ -136,9 +141,33 @@
       ctx.translate(enemy.x, enemy.y);
       ctx.rotate(Math.sin(now * 0.001 + enemy.wobble) * 0.08 + enemy.spin * 0.04);
       if (enemy.type === "saucer") drawSaucer(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow, now);
-      else drawPixelShip(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow, false);
+      else drawEnemyOrb(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow);
       ctx.restore();
     }
+  }
+
+  function drawEnemyOrb(size, body, shade, glow) {
+    const ctx = state.ctx;
+    const unit = size / 10;
+
+    ctx.fillStyle = shade;
+    pixelRect(-3, -4, 6, 1, unit);
+    pixelRect(-4, -3, 8, 2, unit);
+    pixelRect(-5, -1, 10, 3, unit);
+    pixelRect(-4, 2, 8, 2, unit);
+    pixelRect(-3, 4, 6, 1, unit);
+
+    ctx.fillStyle = body;
+    pixelRect(-2, -3, 5, 1, unit);
+    pixelRect(-3, -2, 6, 3, unit);
+    pixelRect(-2, 1, 5, 2, unit);
+
+    ctx.fillStyle = "#f8ffff";
+    pixelRect(-1, -2, 2, 1, unit);
+
+    ctx.fillStyle = glow;
+    pixelRect(-3, 3, 1, 1, unit);
+    pixelRect(2, 3, 1, 1, unit);
   }
 
   function drawSaucer(size, body, wing, glow, now) {
@@ -245,6 +274,7 @@
     if (type === "cooldown") drawCooldownIcon(size);
     else if (type === "speed") drawSpeedIcon(size);
     else if (type === "spread") drawSpreadIcon(size);
+    else if (type === "projectileSpeed") drawProjectileSpeedIcon(size);
     else drawShieldIcon(size);
   }
 
@@ -284,6 +314,20 @@
     ctx.lineTo(size * 0.14, -size * 0.16);
     ctx.lineTo(size * 0.38, -size * 0.02);
     ctx.fill();
+  }
+
+  function drawProjectileSpeedIcon(size) {
+    const ctx = state.ctx;
+    ctx.fillRect(size * 0.02, -size * 0.34, size * 0.12, size * 0.44);
+    ctx.beginPath();
+    ctx.moveTo(size * 0.08, -size * 0.48);
+    ctx.lineTo(size * 0.26, -size * 0.26);
+    ctx.lineTo(-size * 0.1, -size * 0.26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(-size * 0.3, -size * 0.16, size * 0.24, size * 0.06);
+    ctx.fillRect(-size * 0.36, size * 0.02, size * 0.3, size * 0.06);
+    ctx.fillRect(-size * 0.24, size * 0.2, size * 0.18, size * 0.06);
   }
 
   function drawShieldIcon(size) {
@@ -368,10 +412,12 @@
     ctx.fillText(nextText, x, y + uiFontSize(compact ? 14 : 18));
     ctx.restore();
 
-    drawCombo(x, y + uiFontSize(compact ? 31 : 38), compact);
+    const comboY = y + uiFontSize(compact ? 31 : 38);
+    drawCombo(x, comboY);
+    drawUpgradeStats(x, comboY + uiFontSize(compact ? 18 : 22), compact);
   }
 
-  function drawCombo(x, y, compact) {
+  function drawCombo(x, y) {
     const ctx = state.ctx;
     const combo = state.game.combo;
     const tier = combo > 5 ? Math.floor(combo / 5) : 0;
@@ -391,7 +437,29 @@
     ctx.fillStyle = combo > 0 ? "#ffe45c" : "rgba(231, 252, 255, 0.32)";
     ctx.shadowColor = combo > 5 ? "#ff7ab6" : "#ffe45c";
     ctx.shadowBlur = combo > 5 ? 10 + tier * 0.8 + chaos * 0.18 : 6;
-    ctx.fillText(`COMBO x${combo}`, 0, 0);
+    ctx.fillText(`x${combo}`, 0, 0);
+    ctx.restore();
+  }
+
+  function drawUpgradeStats(x, y, compact) {
+    const game = state.game;
+    const stats = [];
+    if (game.spreadLevel > 0) stats.push({ text: `SHOT x${1 + game.spreadLevel * 2}`, color: "#ff7ab6" });
+    if (game.projectileSpeedMultiplier > 1) stats.push({ text: `SPD x${game.projectileSpeedMultiplier.toFixed(2)}`, color: "#ff9f43" });
+    if (stats.length === 0) return;
+
+    const ctx = state.ctx;
+    const lineH = uiFontSize(compact ? 13 : 14);
+    ctx.save();
+    ctx.textAlign = "right";
+    ctx.textBaseline = "top";
+    ctx.font = `700 ${uiFontSize(11)}px "Trebuchet MS", Arial, sans-serif`;
+    ctx.shadowBlur = 7;
+    for (let i = 0; i < stats.length; i += 1) {
+      ctx.fillStyle = stats[i].color;
+      ctx.shadowColor = stats[i].color;
+      ctx.fillText(stats[i].text, x, y + i * lineH);
+    }
     ctx.restore();
   }
 
@@ -418,24 +486,31 @@
     ctx.restore();
   }
 
-  function drawCooldown(now) {
+  function drawCooldown() {
     const ctx = state.ctx;
     const play = state.view.play;
     const barW = Math.max(14, Math.min(22, state.view.width * 0.026));
-    const barH = Math.max(58, Math.min(96, state.view.height * 0.12));
+    const baseBarH = Math.max(58, Math.min(96, state.view.height * 0.12));
+    const capacitySteps = Math.max(0, (state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500);
+    const maxBarH = state.view.compactUi
+      ? Math.max(96, state.view.height * 0.18)
+      : Math.max(130, state.view.height * 0.24);
+    const barH = Math.min(maxBarH, baseBarH + capacitySteps * 14);
     const x = state.view.compactUi ? play.x : Math.max(15, play.x - 64);
     const y = state.view.compactUi
       ? Math.min(state.view.height - barH - 14, play.y + play.h + 14)
       : Math.min(state.view.height - barH - 18, play.y + play.h - barH);
-    const ready = Math.max(0, Math.min(1, (now - state.game.lastShotAt) / state.game.cooldown));
+    const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
+    const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
+    const accent = overheated ? "#ff4b5d" : "#33f5ca";
 
     ctx.save();
-    ctx.strokeStyle = "rgba(230, 255, 250, 0.62)";
+    ctx.strokeStyle = overheated ? "rgba(255, 75, 93, 0.9)" : "rgba(230, 255, 250, 0.62)";
     ctx.lineWidth = 2;
     ctx.strokeRect(x, y, barW, barH);
-    ctx.fillStyle = "rgba(51, 245, 202, 0.16)";
+    ctx.fillStyle = overheated ? "rgba(255, 75, 93, 0.18)" : "rgba(51, 245, 202, 0.16)";
     ctx.fillRect(x + 3, y + 3, barW - 6, barH - 6);
-    ctx.fillStyle = "#33f5ca";
+    ctx.fillStyle = accent;
     ctx.globalAlpha = ready >= 1 ? 1 : 0.82;
     const fillH = (barH - 6) * ready;
     ctx.fillRect(x + 3, y + barH - 3 - fillH, barW - 6, fillH);
@@ -557,6 +632,7 @@
     if (type === "cooldown") return "#33f5ca";
     if (type === "speed") return "#ffe45c";
     if (type === "spread") return "#ff7ab6";
+    if (type === "projectileSpeed") return "#ff9f43";
     return "#9d7dff";
   }
 

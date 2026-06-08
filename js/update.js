@@ -11,11 +11,16 @@
   function shoot(now) {
     const game = state.game;
     const player = game.player;
-    if (!game.running || now - game.lastShotAt < game.cooldown) return;
+    if (!game.running || game.cooldownLocked || game.cooldownCharge <= 0) return;
 
-    game.lastShotAt = now;
+    // Cooldown is a pool: each trigger pull spends a chunk, and overdraw locks it until full.
+    game.cooldownCharge -= config.SHOT_COOLDOWN_COST;
+    if (game.cooldownCharge <= 0) game.cooldownLocked = true;
+
+    // Multishot adds symmetric side shots; only the centre shot is allowed to affect combo.
     const projectileCount = 1 + game.spreadLevel * 2;
     const centerIndex = (projectileCount - 1) / 2;
+    const projectileSpeed = 620 * game.projectileSpeedMultiplier;
 
     for (let i = 0; i < projectileCount; i += 1) {
       const offset = i - centerIndex;
@@ -25,8 +30,9 @@
         y: player.y - player.h / 2,
         w: 7,
         h: 18,
-        vx: Math.sin(angle) * 620,
-        vy: -Math.cos(angle) * 620
+        vx: Math.sin(angle) * projectileSpeed,
+        vy: -Math.cos(angle) * projectileSpeed,
+        comboEligible: offset === 0
       });
     }
   }
@@ -45,6 +51,7 @@
 
     if (state.game.running) {
       updateLevelTimer(dt);
+      updateCooldown(dt);
       updatePlayer(dt, now);
       updateSpawnTimers(dt);
     } else {
@@ -56,6 +63,14 @@
     updatePowerups(dt);
     updateExplosions(dt);
     checkCollisions(now);
+  }
+
+  function updateCooldown(dt) {
+    const game = state.game;
+    game.cooldownCharge = Math.min(game.cooldownCapacity, game.cooldownCharge + dt * 1000);
+    if (game.cooldownLocked && game.cooldownCharge >= game.cooldownCapacity) {
+      game.cooldownLocked = false;
+    }
   }
 
   function updateLevelTimer(dt) {
@@ -81,7 +96,9 @@
     timers.planetTimer -= dt * 1000;
 
     if (timers.spawnTimer <= 0) {
-      spawns.spawnEnemy();
+      // Multishot makes screen clears easier, so each stack also grows enemy wave size.
+      const waveSize = 1 + game.spreadLevel;
+      for (let i = 0; i < waveSize; i += 1) spawns.spawnEnemy();
       timers.spawnTimer += levels.spawnCadence(game.level) * (0.72 + Math.random() * 0.56);
     }
 
@@ -137,18 +154,59 @@
     const play = state.view.play;
     for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
       const projectile = state.projectiles[i];
+      if (projectile.life !== undefined) projectile.life -= dt * 1000;
+      if (projectile.seeker) updateSeekerProjectile(projectile, dt);
+
       projectile.x += (projectile.vx || 0) * dt;
       projectile.y += projectile.vy * dt;
 
       const outsideTop = projectile.y + projectile.h < play.y;
       const outsideBottom = projectile.y - projectile.h > play.y + play.h;
-      const outsideSides = projectile.x + projectile.w < play.x || projectile.x - projectile.w > play.x + play.w;
+      // Combo seekers enter from the side, so they get off-field room before cleanup.
+      const sideMargin = projectile.seeker ? Math.max(90, play.w * 0.22) : 0;
+      const outsideSides = projectile.x + projectile.w < play.x - sideMargin ||
+        projectile.x - projectile.w > play.x + play.w + sideMargin;
 
-      if ((projectile.hostile ? outsideBottom : outsideTop) || outsideSides) {
-        if (!projectile.hostile && outsideTop) resetCombo();
+      if (projectile.life <= 0 || (projectile.hostile ? outsideBottom : outsideTop) || outsideSides) {
+        if (!projectile.hostile && outsideTop && projectile.comboEligible) resetCombo();
         state.projectiles.splice(i, 1);
       }
     }
+  }
+
+  function updateSeekerProjectile(projectile, dt) {
+    const target = nearestSeekerTarget(projectile);
+    if (!target) return;
+
+    const dx = target.x - projectile.x;
+    const dy = target.y - projectile.y;
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const turnForce = 1100;
+    const maxSpeed = 560;
+
+    projectile.vx += (dx / distance) * turnForce * dt;
+    projectile.vy += (dy / distance) * turnForce * dt;
+
+    const speed = Math.max(1, Math.hypot(projectile.vx, projectile.vy));
+    if (speed > maxSpeed) {
+      projectile.vx = projectile.vx / speed * maxSpeed;
+      projectile.vy = projectile.vy / speed * maxSpeed;
+    }
+  }
+
+  function nearestSeekerTarget(projectile) {
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    for (const enemy of state.enemies) {
+      if (enemy.type === "saucer") continue;
+      const distance = Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y);
+      if (distance >= nearestDistance) continue;
+      nearest = enemy;
+      nearestDistance = distance;
+    }
+
+    return nearest;
   }
 
   function updateEnemies(dt) {
@@ -293,10 +351,15 @@
 
       for (let e = state.enemies.length - 1; e >= 0; e -= 1) {
         const enemy = state.enemies[e];
+        if (projectile.seeker && enemy.type === "saucer") continue;
+
         if (utils.rectsOverlap(utils.projectileRect(projectile), utils.entityRect(enemy))) {
           state.projectiles.splice(p, 1);
-          incrementCombo();
-          damageEnemy(enemy, e);
+          if (projectile.seeker) destroyEnemy(enemy, e);
+          else {
+            if (projectile.comboEligible) incrementCombo();
+            damageEnemy(enemy, e);
+          }
           break;
         }
       }
@@ -337,14 +400,8 @@
   }
 
   function killEnemyByShield(enemy, index) {
-    const killedType = enemy.type;
-    const dropX = enemy.x;
-    const dropY = enemy.y;
-    addExplosion(enemy.x, enemy.y, enemy.w * 1.4, "#79ffe1");
-    state.enemies.splice(index, 1);
     state.game.shieldLayers = Math.max(0, state.game.shieldLayers - 1);
-    incrementScore(enemy.points);
-    maybeDropEnemyReward(killedType, dropX, dropY);
+    destroyEnemy(enemy, index, false);
   }
 
   function damageEnemy(enemy, index) {
@@ -354,10 +411,15 @@
       return;
     }
 
+    destroyEnemy(enemy, index, true);
+  }
+
+  function destroyEnemy(enemy, index, useEnemyColor = true) {
     const killedType = enemy.type;
     const dropX = enemy.x;
     const dropY = enemy.y;
-    addExplosion(enemy.x, enemy.y, enemy.w * (enemy.type === "saucer" ? 1.7 : 1.2), enemy.kind.body);
+    const color = useEnemyColor ? enemy.kind.body : "#79ffe1";
+    addExplosion(enemy.x, enemy.y, enemy.w * (enemy.type === "saucer" ? 1.7 : 1.2), color);
     state.enemies.splice(index, 1);
     incrementScore(enemy.points);
     maybeDropEnemyReward(killedType, dropX, dropY);
@@ -366,38 +428,37 @@
   function maybeDropEnemyReward(type, x, y) {
     if (type === "red") {
       maybeDropOneReward(x, y, [
-        ["speed", 0.5],
-        ["invulnerable", 0.25],
-        ["cooldown", 0.05],
-        ["spread", 0.01]
+        ["cooldown", 0.075],
+        ["spread", 0.035],
+        ["projectileSpeed", 0.05]
       ]);
     } else if (type === "purple") {
       maybeDropOneReward(x, y, [
-        ["speed", 0.2],
-        ["invulnerable", 0.075],
-        ["cooldown", 0.03]
+        ["cooldown", 0.05],
+        ["spread", 0.025],
+        ["projectileSpeed", 0.03]
+      ]);
+    } else if (type === "green") {
+      maybeDropOneReward(x, y, [
+        ["invulnerable", 0.01],
+        ["speed", 0.01]
       ]);
     } else if (type === "saucer") {
-      const bossRewards = ["speed", "invulnerable", "cooldown", "spread"];
-      const reward = bossRewards[Math.floor(Math.random() * bossRewards.length)];
-
-      spawns.spawnPowerup({
-        type: reward,
-        x,
-        y,
-        vy: 18,
-        behavior: "attract"
-      });
+      maybeDropOneReward(x, y, [
+        ["cooldown", 0.25],
+        ["spread", 0.2],
+        ["projectileSpeed", 0.2]
+      ], "attract");
     }
   }
 
-  function maybeDropOneReward(x, y, rewardChances) {
-    const multiplier = dropComboMultiplier();
-    const adjustedChances = rewardChances.map(([type, chance]) => [type, chance * multiplier]);
-    const totalChance = adjustedChances.reduce((total, [, chance]) => total + chance, 0);
-    const roll = Math.random() * Math.max(1, totalChance);
+  function maybeDropOneReward(x, y, rewardChances, behavior = "repel") {
+    // Drop chances are direct percentages now. Maxed upgrades are removed before rolling.
+    const availableChances = rewardChances.filter(([type]) => canSpawnReward(type));
+    const totalChance = availableChances.reduce((total, [, chance]) => total + chance, 0);
+    const roll = Math.random();
     let threshold = 0;
-    for (const [type, chance] of adjustedChances) {
+    for (const [type, chance] of availableChances) {
       threshold += chance;
       if (roll >= threshold) continue;
 
@@ -405,14 +466,17 @@
         type,
         x,
         y,
-        vy: 54 + Math.random() * 24
+        vy: behavior === "attract" ? 18 : 54 + Math.random() * 24,
+        behavior
       });
       break;
     }
   }
 
-  function dropComboMultiplier() {
-    return Math.pow(1.1, Math.floor(state.game.combo / 10));
+  function canSpawnReward(type) {
+    if (type === "spread") return state.game.spreadLevel < config.MAX_SPREAD_LEVEL;
+    if (type === "cooldown") return cooldownUpgradeCount() < config.MAX_COOLDOWN_UPGRADES;
+    return true;
   }
 
   function incrementScore(amount) {
@@ -421,10 +485,38 @@
 
   function incrementCombo() {
     state.game.combo += 1;
+    if (state.game.combo % config.COMBO_MISSILE_STEP === 0) spawnComboMissiles();
   }
 
   function resetCombo() {
     state.game.combo = 0;
+  }
+
+  function spawnComboMissiles() {
+    const play = state.view.play;
+    const player = state.game.player;
+    const centerOffset = (config.COMBO_MISSILE_COUNT - 1) / 2;
+
+    // These are combo rewards, not player shots: they seek normal enemies and ignore bosses.
+    for (let i = 0; i < config.COMBO_MISSILE_COUNT; i += 1) {
+      const fromLeft = i % 2 === 0;
+      const y = utils.clamp(player.y + (i - centerOffset) * player.h * 0.8, play.y + 24, play.y + play.h - 24);
+      state.projectiles.push({
+        seeker: true,
+        comboEligible: false,
+        x: fromLeft ? play.x - 16 : play.x + play.w + 16,
+        y,
+        w: 10,
+        h: 20,
+        vx: fromLeft ? 360 : -360,
+        vy: -80 + i * 40,
+        life: 3600
+      });
+    }
+  }
+
+  function cooldownUpgradeCount() {
+    return Math.max(0, Math.round((state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500));
   }
 
   function absorbPlayerHit(x, y, size) {
@@ -439,13 +531,19 @@
     addExplosion(power.x, power.y, power.w * 1.1, window.StarfallDraw.powerColor(power.type));
 
     if (power.type === "cooldown") {
-      state.game.cooldown = Math.max(config.MIN_COOLDOWN, Math.round(state.game.cooldown * 0.9));
+      if (cooldownUpgradeCount() >= config.MAX_COOLDOWN_UPGRADES) return;
+      state.game.cooldownCapacity += 500;
+      state.game.cooldownCharge = Math.min(state.game.cooldownCapacity, state.game.cooldownCharge + 500);
+      if (state.game.cooldownLocked && state.game.cooldownCharge >= state.game.cooldownCapacity) state.game.cooldownLocked = false;
     } else if (power.type === "speed") {
       state.game.speedStacks = Math.min(config.SPEED_STACK_MAX, state.game.speedStacks + 1);
     } else if (power.type === "invulnerable") {
       state.game.shieldLayers = Math.min(config.SHIELD_STACK_MAX, state.game.shieldLayers + 1);
     } else if (power.type === "spread") {
+      if (state.game.spreadLevel >= config.MAX_SPREAD_LEVEL) return;
       state.game.spreadLevel += 1;
+    } else if (power.type === "projectileSpeed") {
+      state.game.projectileSpeedMultiplier *= 1.025;
     }
   }
 

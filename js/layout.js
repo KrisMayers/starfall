@@ -98,11 +98,13 @@
     game.running = game.screen === "playing";
     game.score = 0;
     game.level = 0;
-    game.cooldown = config.BASE_COOLDOWN;
-    game.lastShotAt = -config.BASE_COOLDOWN;
+    game.cooldownCapacity = config.BASE_COOLDOWN_CAPACITY;
+    game.cooldownCharge = config.BASE_COOLDOWN_CAPACITY;
+    game.cooldownLocked = false;
     game.speedStacks = 0;
     game.shieldLayers = 0;
     game.spreadLevel = 0;
+    game.projectileSpeedMultiplier = 1;
     game.combo = 0;
     game.speedBoostUntil = 0;
     player.alive = true;
