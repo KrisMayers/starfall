@@ -6,6 +6,10 @@
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 html,
@@ -26,6 +30,7 @@ canvas {
   width: 100vw;
   height: 100vh;
   image-rendering: pixelated;
+  -webkit-user-select: none;
   user-select: none;
   touch-action: none;
 }

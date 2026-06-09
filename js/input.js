@@ -110,10 +110,14 @@
     const play = state.view.play;
     const player = state.game.player;
     const vertical = layout.playerVerticalBounds();
+    const targetX = Math.max(play.x + player.w / 2, Math.min(play.x + play.w - player.w / 2, point.x));
+    const targetY = state.view.compactUi
+      ? player.y
+      : Math.max(vertical.min, Math.min(vertical.max, point.y));
 
     return {
-      x: Math.max(play.x + player.w / 2, Math.min(play.x + play.w - player.w / 2, point.x)),
-      y: Math.max(vertical.min, Math.min(vertical.max, point.y))
+      x: targetX,
+      y: targetY
     };
   }
 

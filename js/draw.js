@@ -701,7 +701,7 @@
     ctx.shadowBlur = 0;
     ctx.font = `700 ${Math.max(12, Math.min(16, play.w * 0.038))}px "Trebuchet MS", Arial, sans-serif`;
     ctx.fillStyle = "rgba(125, 245, 255, 0.78)";
-    const controlsText = state.view.compactUi ? "DRAG TO MOVE" : "SPACE TO FIRE  |  E FOR BOOST";
+    const controlsText = state.view.compactUi ? "DRAG LEFT / RIGHT" : "SPACE TO FIRE  |  E FOR BOOST";
     ctx.fillText(controlsText, play.x + play.w / 2, play.y + play.h * 0.54);
     ctx.restore();
   }
