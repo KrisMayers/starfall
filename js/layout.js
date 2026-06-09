@@ -88,6 +88,11 @@
     state.explosions.length = 0;
     state.powerups.length = 0;
     state.planets.length = 0;
+    state.touch.movePointerId = null;
+    state.touch.moveTarget = null;
+    state.touch.firePointerId = null;
+    state.touch.fireHeld = false;
+    state.touch.nextFireAt = 0;
     timers.spawnTimer = 550;
     timers.planetTimer = 7000;
     timers.gameOverTimer = 0;
@@ -124,9 +129,31 @@
     };
   }
 
+  function mobileControls() {
+    const view = state.view;
+    if (!view.compactUi) return null;
+
+    const play = view.play;
+    const radius = Math.max(28, Math.min(38, view.width * 0.085));
+    const y = Math.min(view.height - radius - 12, play.y + play.h + radius + 18);
+
+    return {
+      radius,
+      boost: {
+        x: Math.max(radius + 16, play.x + radius + 10),
+        y
+      },
+      fire: {
+        x: Math.min(view.width - radius - 16, play.x + play.w - radius - 10),
+        y
+      }
+    };
+  }
+
   window.StarfallLayout = {
     resize,
     resetGame,
-    playerVerticalBounds
+    playerVerticalBounds,
+    mobileControls
   };
 }());

@@ -8,6 +8,13 @@
     canvas,
     ctx: canvas.getContext("2d"),
     keys: new Set(),
+    touch: {
+      movePointerId: null,
+      moveTarget: null,
+      firePointerId: null,
+      fireHeld: false,
+      nextFireAt: 0
+    },
     stars: [],
     enemies: [],
     projectiles: [],

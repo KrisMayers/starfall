@@ -52,6 +52,7 @@
     if (state.game.running) {
       updateLevelTimer(dt);
       updateCooldown(dt);
+      updateTouchFire(now);
       updatePlayer(dt, now);
       updateSpawnTimers(dt);
     } else {
@@ -133,6 +134,7 @@
     const play = state.view.play;
     const game = state.game;
     const player = game.player;
+    const touch = state.touch;
     let xAxis = 0;
     let yAxis = 0;
 
@@ -144,10 +146,33 @@
     const boost = now < game.speedBoostUntil ? 2 : 1;
     player.x += xAxis * player.speed * boost * dt;
     player.y += yAxis * player.speed * 0.58 * boost * dt;
+
+    if (touch.moveTarget) {
+      const dx = touch.moveTarget.x - player.x;
+      const dy = touch.moveTarget.y - player.y;
+      const distance = Math.hypot(dx, dy);
+      const maxStep = player.speed * boost * dt;
+      if (distance <= maxStep) {
+        player.x = touch.moveTarget.x;
+        player.y = touch.moveTarget.y;
+      } else if (distance > 1) {
+        player.x += dx / distance * maxStep;
+        player.y += dy / distance * maxStep;
+      }
+    }
+
     player.x = utils.clamp(player.x, play.x + player.w / 2, play.x + play.w - player.w / 2);
 
     const vertical = layout.playerVerticalBounds();
     player.y = utils.clamp(player.y, vertical.min, vertical.max);
+  }
+
+  function updateTouchFire(now) {
+    const touch = state.touch;
+    if (!touch.fireHeld || now < touch.nextFireAt) return;
+
+    shoot(now);
+    touch.nextFireAt = now + 120;
   }
 
   function updateProjectiles(dt) {
@@ -497,19 +522,22 @@
     const player = state.game.player;
     const centerOffset = (config.COMBO_MISSILE_COUNT - 1) / 2;
 
-    // These are combo rewards, not player shots: they seek normal enemies and ignore bosses.
+    // These are combo rewards, not player shots: they rise from the bottom and ignore bosses.
     for (let i = 0; i < config.COMBO_MISSILE_COUNT; i += 1) {
-      const fromLeft = i % 2 === 0;
-      const y = utils.clamp(player.y + (i - centerOffset) * player.h * 0.8, play.y + 24, play.y + play.h - 24);
+      const x = utils.clamp(
+        player.x + (i - centerOffset) * player.w * 1.25,
+        play.x + 24,
+        play.x + play.w - 24
+      );
       state.projectiles.push({
         seeker: true,
         comboEligible: false,
-        x: fromLeft ? play.x - 16 : play.x + play.w + 16,
-        y,
+        x,
+        y: play.y + play.h + 22,
         w: 10,
         h: 20,
-        vx: fromLeft ? 360 : -360,
-        vy: -80 + i * 40,
+        vx: (i - centerOffset) * 22,
+        vy: -430,
         life: 3600
       });
     }

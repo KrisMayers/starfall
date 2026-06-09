@@ -4,6 +4,7 @@
   const config = window.StarfallConfig;
   const state = window.StarfallState;
   const levels = window.StarfallLevels;
+  const layout = window.StarfallLayout;
   const spawns = window.StarfallSpawns;
 
   function draw(now) {
@@ -15,11 +16,7 @@
     drawPlayfield(now);
     drawPlanets();
     drawStars();
-    drawPowerups(now);
-    drawProjectiles();
-    drawEnemies(now);
-    if (state.game.player.alive) drawPlayer(now);
-    drawExplosions();
+    drawGameplayObjects(now);
     drawPlayfieldFrame();
     if (state.game.running) drawUi(now);
     else if (state.game.screen === "start") drawStartScreen(now);
@@ -131,6 +128,21 @@
       }
       ctx.restore();
     }
+    ctx.restore();
+  }
+
+  function drawGameplayObjects(now) {
+    const ctx = state.ctx;
+    const play = state.view.play;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(play.x, play.y, play.w, play.h);
+    ctx.clip();
+    drawPowerups(now);
+    drawProjectiles();
+    drawEnemies(now);
+    if (state.game.player.alive) drawPlayer(now);
+    drawExplosions();
     ctx.restore();
   }
 
@@ -384,6 +396,7 @@
     drawBossHealth();
     drawCooldown(now);
     drawStoredPowerups(now);
+    drawMobileControls();
   }
 
   function drawScore() {
@@ -487,6 +500,11 @@
   }
 
   function drawCooldown() {
+    if (state.view.compactUi) {
+      drawHorizontalCooldown();
+      return;
+    }
+
     const ctx = state.ctx;
     const play = state.view.play;
     const barW = Math.max(14, Math.min(22, state.view.width * 0.026));
@@ -517,11 +535,40 @@
     ctx.restore();
   }
 
+  function drawHorizontalCooldown() {
+    const ctx = state.ctx;
+    const play = state.view.play;
+    const capacitySteps = Math.max(0, (state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500);
+    const barW = Math.min(play.w * 0.48, Math.max(78, play.w * 0.26) + capacitySteps * 18);
+    const barH = Math.max(14, Math.min(18, state.view.height * 0.022));
+    const x = play.x;
+    const y = Math.min(state.view.height - barH - 8, play.y + play.h + 12);
+    const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
+    const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
+    const accent = overheated ? "#ff4b5d" : "#33f5ca";
+
+    ctx.save();
+    ctx.strokeStyle = overheated ? "rgba(255, 75, 93, 0.9)" : "rgba(230, 255, 250, 0.62)";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, barW, barH);
+    ctx.fillStyle = overheated ? "rgba(255, 75, 93, 0.18)" : "rgba(51, 245, 202, 0.16)";
+    ctx.fillRect(x + 3, y + 3, barW - 6, barH - 6);
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = ready >= 1 ? 1 : 0.82;
+    ctx.fillRect(x + 3, y + 3, (barW - 6) * ready, barH - 6);
+    ctx.restore();
+  }
+
   function drawStoredPowerups(now) {
     const ctx = state.ctx;
     const play = state.view.play;
     const size = Math.max(22, Math.min(34, state.view.width * 0.04));
     const gap = Math.max(7, size * 0.25);
+    if (state.view.compactUi) {
+      drawStoredPowerupsHorizontal(now, size, gap);
+      return;
+    }
+
     const totalH = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
     const startX = state.view.compactUi
       ? Math.min(play.x + play.w - size, state.view.width - size - 48)
@@ -554,6 +601,80 @@
     }
   }
 
+  function drawStoredPowerupsHorizontal(now, size, gap) {
+    const play = state.view.play;
+    const totalW = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
+    const startX = Math.min(play.x + play.w - totalW, state.view.width - totalW - 10);
+    const startY = Math.min(state.view.height - size - 8, play.y + play.h + 8);
+
+    for (let i = 0; i < config.SPEED_STACK_MAX; i += 1) {
+      state.ctx.save();
+      state.ctx.translate(startX + i * (size + gap) + size / 2, startY + size / 2);
+      state.ctx.globalAlpha = i < state.game.speedStacks ? 1 : 0.22;
+      drawPowerIcon("speed", size, i < state.game.speedStacks);
+      state.ctx.restore();
+    }
+
+    if (now < state.game.speedBoostUntil) {
+      const remaining = Math.ceil((state.game.speedBoostUntil - now) / 1000);
+      drawUiText(`${remaining}`, Math.max(10, startX - 8), startY + size / 2, "right");
+    }
+  }
+
+  function drawMobileControls() {
+    const controls = layout.mobileControls();
+    if (!controls) return;
+
+    drawTouchButton(controls.boost, controls.radius, "#ffe45c", state.game.speedStacks > 0, drawTouchBoostIcon);
+    drawTouchButton(controls.fire, controls.radius, "#33f5ca", !state.game.cooldownLocked, drawTouchFireIcon);
+  }
+
+  function drawTouchButton(control, radius, color, active, iconDraw) {
+    const ctx = state.ctx;
+    ctx.save();
+    ctx.globalAlpha = active ? 0.82 : 0.32;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = active ? 12 : 0;
+    ctx.fillStyle = "rgba(8, 15, 31, 0.72)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(control.x, control.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.translate(control.x, control.y);
+    ctx.fillStyle = color;
+    iconDraw(radius);
+    ctx.restore();
+  }
+
+  function drawTouchFireIcon(radius) {
+    const ctx = state.ctx;
+    ctx.beginPath();
+    ctx.moveTo(0, -radius * 0.52);
+    ctx.lineTo(radius * 0.22, radius * 0.12);
+    ctx.lineTo(radius * 0.08, radius * 0.12);
+    ctx.lineTo(radius * 0.08, radius * 0.48);
+    ctx.lineTo(-radius * 0.08, radius * 0.48);
+    ctx.lineTo(-radius * 0.08, radius * 0.12);
+    ctx.lineTo(-radius * 0.22, radius * 0.12);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawTouchBoostIcon(radius) {
+    const ctx = state.ctx;
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.08, -radius * 0.52);
+    ctx.lineTo(radius * 0.3, -radius * 0.08);
+    ctx.lineTo(radius * 0.08, -radius * 0.04);
+    ctx.lineTo(radius * 0.26, radius * 0.5);
+    ctx.lineTo(-radius * 0.32, -radius * 0.02);
+    ctx.lineTo(-radius * 0.08, -radius * 0.08);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawStartScreen(now) {
     const ctx = state.ctx;
     const play = state.view.play;
@@ -569,13 +690,14 @@
     ctx.font = `700 ${Math.max(18, Math.min(34, play.w * 0.078))}px "Trebuchet MS", Arial, sans-serif`;
     const pulse = 0.72 + (Math.sin(now * 0.004) + 1) * 0.14;
     ctx.globalAlpha = pulse;
-    ctx.fillText("PRESS ENTER TO PLAY", play.x + play.w / 2, play.y + play.h * 0.46);
+    ctx.fillText(state.view.compactUi ? "TAP TO PLAY" : "PRESS ENTER TO PLAY", play.x + play.w / 2, play.y + play.h * 0.46);
 
     ctx.globalAlpha = 0.78;
     ctx.shadowBlur = 0;
     ctx.font = `700 ${Math.max(12, Math.min(16, play.w * 0.038))}px "Trebuchet MS", Arial, sans-serif`;
     ctx.fillStyle = "rgba(125, 245, 255, 0.78)";
-    ctx.fillText("SPACE TO FIRE  |  E FOR BOOST", play.x + play.w / 2, play.y + play.h * 0.54);
+    const controlsText = state.view.compactUi ? "DRAG TO MOVE" : "SPACE TO FIRE  |  E FOR BOOST";
+    ctx.fillText(controlsText, play.x + play.w / 2, play.y + play.h * 0.54);
     ctx.restore();
   }
 
@@ -606,7 +728,7 @@
     if (state.timers.gameOverTimer > 650) {
       ctx.font = `700 ${Math.max(13, Math.min(18, play.w * 0.045))}px "Trebuchet MS", Arial, sans-serif`;
       ctx.fillStyle = "rgba(125, 245, 255, 0.78)";
-      ctx.fillText("R TO RESTART", play.x + play.w / 2, play.y + play.h * 0.62);
+      ctx.fillText(state.view.compactUi ? "TAP TO RESTART" : "R TO RESTART", play.x + play.w / 2, play.y + play.h * 0.62);
     }
     ctx.restore();
   }

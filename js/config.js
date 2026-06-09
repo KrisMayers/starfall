@@ -14,8 +14,8 @@
     // Each multishot stack adds one projectile to each side of the centre shot.
     MAX_SPREAD_LEVEL: 3,
 
-    // Every 10 centre-shot combo hits spawns 5 side-entry seeker missiles.
-    COMBO_MISSILE_STEP: 10,
+    // Every 15 centre-shot combo hits spawns 5 bottom-entry seeker missiles.
+    COMBO_MISSILE_STEP: 15,
     COMBO_MISSILE_COUNT: 5,
     RESTART_KEY: "KeyR",
     SPEED_KEY: "KeyE",
