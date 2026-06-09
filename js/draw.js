@@ -379,6 +379,8 @@
   }
 
   function drawPlayfieldFrame() {
+    if (state.view.compactUi) return;
+
     const ctx = state.ctx;
     const play = state.view.play;
     ctx.save();
@@ -401,8 +403,8 @@
 
   function drawScore() {
     const play = state.view.play;
-    const x = state.view.compactUi ? play.x : Math.max(12, play.x - 84);
-    const y = state.view.compactUi ? Math.max(28, play.y - 30) : Math.max(28, play.y + 22);
+    const x = state.view.compactUi ? 14 : Math.max(12, play.x - 84);
+    const y = state.view.compactUi ? 24 : Math.max(28, play.y + 22);
     drawUiText(`${state.game.score}`, x, y, "left");
   }
 
@@ -410,8 +412,8 @@
     const ctx = state.ctx;
     const play = state.view.play;
     const compact = state.view.compactUi;
-    const x = compact ? play.x + play.w : Math.min(state.view.width - 12, play.x + play.w + 84);
-    const y = compact ? Math.max(28, play.y - 30) : Math.max(28, play.y + 22);
+    const x = compact ? state.view.width - 14 : Math.min(state.view.width - 12, play.x + play.w + 84);
+    const y = compact ? 24 : Math.max(28, play.y + 22);
     drawUiText(`LV ${state.game.level + 1}`, x, y, "right");
 
     ctx.save();
@@ -421,7 +423,8 @@
     const nextText = spawns.activeBoss()
       ? "BOSS"
       : `NEXT ${levels.formatTime(levels.levelDuration(state.game.level) - state.timers.levelTime)}`;
-    ctx.fillStyle = "rgba(231, 252, 255, 0.58)";
+    if (compact) drawTextBackplate(x, y + uiFontSize(14), ctx.measureText(nextText).width + 12, uiFontSize(16), "right");
+    ctx.fillStyle = "rgba(231, 252, 255, 0.76)";
     ctx.fillText(nextText, x, y + uiFontSize(compact ? 14 : 18));
     ctx.restore();
 
@@ -447,6 +450,7 @@
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
     ctx.font = `700 ${fontSize}px "Trebuchet MS", Arial, sans-serif`;
+    if (state.view.compactUi) drawTextBackplate(0, 0, ctx.measureText(`x${combo}`).width + 12, fontSize + 6, "right");
     ctx.fillStyle = combo > 0 ? "#ffe45c" : "rgba(231, 252, 255, 0.32)";
     ctx.shadowColor = combo > 5 ? "#ff7ab6" : "#ffe45c";
     ctx.shadowBlur = combo > 5 ? 10 + tier * 0.8 + chaos * 0.18 : 6;
@@ -469,6 +473,7 @@
     ctx.font = `700 ${uiFontSize(11)}px "Trebuchet MS", Arial, sans-serif`;
     ctx.shadowBlur = 7;
     for (let i = 0; i < stats.length; i += 1) {
+      if (compact) drawTextBackplate(x, y + i * lineH, ctx.measureText(stats[i].text).width + 12, lineH + 4, "right");
       ctx.fillStyle = stats[i].color;
       ctx.shadowColor = stats[i].color;
       ctx.fillText(stats[i].text, x, y + i * lineH);
@@ -537,12 +542,12 @@
 
   function drawHorizontalCooldown() {
     const ctx = state.ctx;
-    const play = state.view.play;
+    const controls = layout.mobileControls();
     const capacitySteps = Math.max(0, (state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500);
-    const barW = Math.min(play.w * 0.48, Math.max(78, play.w * 0.26) + capacitySteps * 18);
+    const barW = Math.min(state.view.width * 0.42, Math.max(92, state.view.width * 0.28) + capacitySteps * 18);
     const barH = Math.max(14, Math.min(18, state.view.height * 0.022));
-    const x = play.x;
-    const y = Math.min(state.view.height - barH - 8, play.y + play.h + 12);
+    const x = 12;
+    const y = controls ? controls.fire.y - controls.radius - barH - 18 : state.view.height - barH - 72;
     const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
     const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
     const accent = overheated ? "#ff4b5d" : "#33f5ca";
@@ -602,10 +607,10 @@
   }
 
   function drawStoredPowerupsHorizontal(now, size, gap) {
-    const play = state.view.play;
+    const controls = layout.mobileControls();
     const totalW = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
-    const startX = Math.min(play.x + play.w - totalW, state.view.width - totalW - 10);
-    const startY = Math.min(state.view.height - size - 8, play.y + play.h + 8);
+    const startX = Math.max(12, state.view.width - totalW - 12);
+    const startY = controls ? controls.fire.y - controls.radius - size - 12 : state.view.height - size - 72;
 
     for (let i = 0; i < config.SPEED_STACK_MAX; i += 1) {
       state.ctx.save();
@@ -739,10 +744,27 @@
     ctx.textAlign = align;
     ctx.textBaseline = "middle";
     ctx.font = `700 ${uiFontSize(16)}px "Trebuchet MS", Arial, sans-serif`;
+    if (state.view.compactUi) drawTextBackplate(x, y, ctx.measureText(text).width + 14, uiFontSize(20), align, "middle");
     ctx.fillStyle = "#e7fcff";
     ctx.shadowColor = "#2de6ff";
     ctx.shadowBlur = 12;
     ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawTextBackplate(x, y, width, height, align, baseline = "top") {
+    const ctx = state.ctx;
+    let left = x;
+    if (align === "right") left = x - width;
+    else if (align === "center") left = x - width / 2;
+
+    let top = y;
+    if (baseline === "middle") top = y - height / 2;
+
+    ctx.save();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "rgba(3, 6, 14, 0.48)";
+    ctx.fillRect(left - 4, top - 2, width + 8, height + 4);
     ctx.restore();
   }
 

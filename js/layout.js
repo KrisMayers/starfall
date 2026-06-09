@@ -21,31 +21,33 @@
 
     view.compactUi = view.width < 620;
 
-    const minSideUi = view.compactUi ? 16 : 92;
-    const topBottomUi = view.compactUi ? 76 : 24;
-    const bottomUi = view.compactUi ? 86 : 24;
-    const maxW = Math.max(220, view.width - minSideUi * 2);
-    const maxH = Math.max(320, view.height - topBottomUi - bottomUi);
-    let playW = Math.min(maxW, maxH * 9 / 16);
-    let playH = playW * 16 / 9;
+    if (view.compactUi) {
+      view.play = { x: 0, y: 0, w: view.width, h: view.height };
+    } else {
+      const minSideUi = 92;
+      const topBottomUi = 24;
+      const bottomUi = 24;
+      const maxW = Math.max(220, view.width - minSideUi * 2);
+      const maxH = Math.max(320, view.height - topBottomUi - bottomUi);
+      let playW = Math.min(maxW, maxH * 9 / 16);
+      let playH = playW * 16 / 9;
 
-    if (playH > maxH) {
-      playH = maxH;
-      playW = playH * 9 / 16;
+      if (playH > maxH) {
+        playH = maxH;
+        playW = playH * 9 / 16;
+      }
+
+      view.play = {
+        x: Math.round((view.width - playW) / 2),
+        y: Math.round((view.height - playH) / 2),
+        w: Math.round(playW),
+        h: Math.round(playH)
+      };
     }
-
-    view.play = {
-      x: Math.round((view.width - playW) / 2),
-      y: view.compactUi
-        ? Math.round(topBottomUi + (maxH - playH) / 2)
-        : Math.round((view.height - playH) / 2),
-      w: Math.round(playW),
-      h: Math.round(playH)
-    };
 
     player.w = Math.max(28, Math.min(44, view.play.w * 0.08));
     player.h = player.w;
-    player.y = view.play.y + view.play.h - player.h - Math.max(18, view.play.h * 0.035);
+    player.y = playerHomeY();
     player.x = utils.clamp(player.x || view.play.x + view.play.w / 2, view.play.x + player.w / 2, view.play.x + view.play.w - player.w / 2);
 
     const vertical = playerVerticalBounds();
@@ -115,18 +117,30 @@
     player.alive = true;
     player.exploding = false;
     player.x = play.x + play.w / 2;
-    player.y = play.y + play.h - player.h - Math.max(18, play.h * 0.035);
+    player.y = playerHomeY();
   }
 
   function playerVerticalBounds() {
     const play = state.view.play;
     const player = state.game.player;
-    const homeY = play.y + play.h - player.h - Math.max(18, play.h * 0.035);
+    const homeY = playerHomeY();
 
     return {
       min: Math.max(play.y + player.h / 2, homeY - play.h * 0.16),
       max: Math.min(play.y + play.h - player.h / 2, homeY + play.h * 0.035)
     };
+  }
+
+  function playerHomeY() {
+    const play = state.view.play;
+    const player = state.game.player;
+    const playerH = player.h || player.w || 34;
+    if (!state.view.compactUi) return play.y + play.h - playerH - Math.max(18, play.h * 0.035);
+
+    const controls = mobileControls();
+    return controls
+      ? controls.fire.y - controls.radius - playerH - 28
+      : play.y + play.h - playerH - 96;
   }
 
   function mobileControls() {
@@ -154,6 +168,7 @@
     resize,
     resetGame,
     playerVerticalBounds,
+    playerHomeY,
     mobileControls
   };
 }());
