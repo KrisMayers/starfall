@@ -62,6 +62,7 @@
     updateProjectiles(dt);
     updateEnemies(dt);
     updatePowerups(dt);
+    updateComboEffects(dt);
     updateExplosions(dt);
     checkCollisions(now);
   }
@@ -200,8 +201,11 @@
   }
 
   function updateSeekerProjectile(projectile, dt) {
-    const target = nearestSeekerTarget(projectile);
+    const target = projectile.target && state.enemies.includes(projectile.target)
+      ? projectile.target
+      : nearestSeekerTarget(projectile);
     if (!target) return;
+    projectile.target = target;
 
     const dx = target.x - projectile.x;
     const dy = target.y - projectile.y;
@@ -224,7 +228,6 @@
     let nearestDistance = Infinity;
 
     for (const enemy of state.enemies) {
-      if (enemy.type === "saucer") continue;
       const distance = Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y);
       if (distance >= nearestDistance) continue;
       nearest = enemy;
@@ -349,6 +352,133 @@
     }
   }
 
+  function updateComboEffects(dt) {
+    for (let i = state.comboEffects.length - 1; i >= 0; i -= 1) {
+      const effect = state.comboEffects[i];
+      effect.age += dt * 1000;
+
+      if (effect.age < 0) continue;
+
+      if (effect.type === "bomb") updateBombEffect(effect, dt);
+      else if (effect.type === "wingman") updateWingmanEffect(effect, dt);
+      else if (effect.type === "shockwave") updateShockwaveEffect(effect);
+      else if (effect.type === "laser") updateLaserEffect(effect, dt);
+
+      if (effect.age > effect.life) {
+        if (effect.type === "wingman" && effect.pass < config.COMBO_WINGMAN_PASSES - 1) spawnWingmanPass(effect.pass + 1);
+        state.comboEffects.splice(i, 1);
+      }
+    }
+  }
+
+  function updateBombEffect(effect, dt) {
+    effect.tickTimer -= dt * 1000;
+    while (effect.tickTimer <= 0) {
+      damageEnemiesInRadius(effect.x, effect.y, effect.radius, 1, "#ffb84d");
+      effect.tickTimer += config.COMBO_BOMB_TICK;
+    }
+  }
+
+  function updateLaserEffect(effect, dt) {
+    const play = state.view.play;
+    const sweep = Math.sin((effect.age / effect.life) * Math.PI * 2);
+    effect.x = effect.centerX + sweep * effect.sweepRange;
+    effect.x = utils.clamp(effect.x, play.x + effect.width / 2, play.x + play.w - effect.width / 2);
+
+    effect.tickTimer -= dt * 1000;
+    while (effect.tickTimer <= 0) {
+      damageEnemiesInBeam(effect.x, effect.width, 1, "#9dfffa");
+      effect.tickTimer += config.COMBO_LASER_TICK;
+    }
+  }
+
+  function updateWingmanEffect(effect, dt) {
+    const t = Math.max(0, Math.min(1, effect.age / effect.life));
+    effect.x = effect.start.x + (effect.end.x - effect.start.x) * t;
+    effect.y = effect.start.y + (effect.end.y - effect.start.y) * t;
+
+    if (effect.crash) {
+      updateWingmanCrash(effect);
+      return;
+    }
+
+    effect.shotTimer -= dt * 1000;
+    if (effect.shotTimer > 0) return;
+
+    const targetInfo = nearestEnemyInRadius(effect.x, effect.y, Math.max(95, state.view.play.w * 0.22));
+    if (!targetInfo) return;
+
+    effect.shotTimer = 170;
+    state.comboEffects.push({
+      type: "tracer",
+      x1: effect.x,
+      y1: effect.y,
+      x2: targetInfo.enemy.x,
+      y2: targetInfo.enemy.y,
+      age: 0,
+      life: 140
+    });
+    damageEnemyByAmount(targetInfo.enemy, targetInfo.index, 1, "#a8f7ff");
+  }
+
+  function updateWingmanCrash(effect) {
+    const distance = Math.hypot(effect.end.x - effect.x, effect.end.y - effect.y);
+    if (distance > 22) return;
+
+    effect.x = effect.end.x;
+    effect.y = effect.end.y;
+    addExplosion(effect.x, effect.y, 42, "#a8f7ff");
+    spawnShockwave(effect.x, effect.y);
+    effect.age = effect.life + 1;
+  }
+
+  function updateShockwaveEffect(effect) {
+    const progress = Math.max(0, Math.min(1, effect.age / effect.life));
+    effect.radius = effect.maxRadius * progress;
+
+    for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = state.enemies[i];
+      if (effect.hitEnemies.includes(enemy)) continue;
+      const distance = Math.hypot(enemy.x - effect.x, enemy.y - effect.y);
+      if (distance > effect.radius + enemy.w * 0.45) continue;
+
+      effect.hitEnemies.push(enemy);
+      damageEnemyByAmount(enemy, i, 2, "#a8f7ff");
+    }
+  }
+
+  function damageEnemiesInRadius(x, y, radius, amount, color) {
+    for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = state.enemies[i];
+      const reach = radius + enemy.w * 0.45;
+      if (Math.hypot(enemy.x - x, enemy.y - y) > reach) continue;
+      damageEnemyByAmount(enemy, i, amount, color);
+    }
+  }
+
+  function damageEnemiesInBeam(x, width, amount, color) {
+    for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = state.enemies[i];
+      if (Math.abs(enemy.x - x) > width / 2 + enemy.w / 2) continue;
+      damageEnemyByAmount(enemy, i, amount, color);
+    }
+  }
+
+  function nearestEnemyInRadius(x, y, radius) {
+    let match = null;
+    let matchDistance = Infinity;
+
+    for (let i = 0; i < state.enemies.length; i += 1) {
+      const enemy = state.enemies[i];
+      const distance = Math.hypot(enemy.x - x, enemy.y - y);
+      if (distance > radius || distance >= matchDistance) continue;
+      match = { enemy, index: i };
+      matchDistance = distance;
+    }
+
+    return match;
+  }
+
   function updateExplosions(dt) {
     for (let i = state.explosions.length - 1; i >= 0; i -= 1) {
       const explosion = state.explosions[i];
@@ -376,11 +506,10 @@
 
       for (let e = state.enemies.length - 1; e >= 0; e -= 1) {
         const enemy = state.enemies[e];
-        if (projectile.seeker && enemy.type === "saucer") continue;
 
         if (utils.rectsOverlap(utils.projectileRect(projectile), utils.entityRect(enemy))) {
           state.projectiles.splice(p, 1);
-          if (projectile.seeker) destroyEnemy(enemy, e);
+          if (projectile.seeker) damageEnemyByAmount(enemy, e, projectile.damage || 1, "#ffe45c");
           else {
             if (projectile.comboEligible) incrementCombo();
             damageEnemy(enemy, e);
@@ -430,9 +559,13 @@
   }
 
   function damageEnemy(enemy, index) {
-    enemy.health -= 1;
+    damageEnemyByAmount(enemy, index, 1, "#eaffff");
+  }
+
+  function damageEnemyByAmount(enemy, index, amount, color = "#eaffff") {
+    enemy.health -= amount;
     if (enemy.health > 0) {
-      addExplosion(enemy.x, enemy.y, enemy.w * 0.42, "#eaffff");
+      addExplosion(enemy.x, enemy.y, enemy.w * 0.42, color);
       return;
     }
 
@@ -510,20 +643,32 @@
 
   function incrementCombo() {
     state.game.combo += 1;
-    if (state.game.combo % config.COMBO_MISSILE_STEP === 0) spawnComboMissiles();
+    triggerComboReward(state.game.combo);
   }
 
   function resetCombo() {
     state.game.combo = 0;
   }
 
-  function spawnComboMissiles() {
+  function triggerComboReward(combo) {
+    if (combo % config.COMBO_REWARD_STEP !== 0) return;
+
+    const tier = combo / config.COMBO_REWARD_STEP;
+    if (tier === 1) spawnComboMissiles(5, 1);
+    else if (tier === 2) spawnComboBombs();
+    else if (tier === 3) spawnWingmanPass(0);
+    else if (tier === 4) spawnComboLaser();
+    else if (tier >= 5) spawnComboFinale();
+  }
+
+  function spawnComboMissiles(count, damage) {
     const play = state.view.play;
     const player = state.game.player;
-    const centerOffset = (config.COMBO_MISSILE_COUNT - 1) / 2;
+    const centerOffset = (count - 1) / 2;
+    const targets = distinctEnemyTargets(count);
 
-    // These are combo rewards, not player shots: they rise from the bottom and ignore bosses.
-    for (let i = 0; i < config.COMBO_MISSILE_COUNT; i += 1) {
+    // Combo missiles reserve different targets where possible so they spread their value.
+    for (let i = 0; i < count; i += 1) {
       const x = utils.clamp(
         player.x + (i - centerOffset) * player.w * 1.25,
         play.x + 24,
@@ -538,9 +683,127 @@
         h: 20,
         vx: (i - centerOffset) * 22,
         vy: -430,
+        damage,
+        target: targets[i] || null,
         life: 3600
       });
     }
+  }
+
+  function distinctEnemyTargets(count) {
+    return [...state.enemies]
+      .sort((a, b) => a.y - b.y)
+      .slice(0, count);
+  }
+
+  function spawnComboBombs() {
+    const play = state.view.play;
+    const radius = Math.max(48, Math.min(82, play.w * 0.14));
+
+    for (let i = 0; i < config.COMBO_BOMB_COUNT; i += 1) {
+      state.comboEffects.push({
+        type: "bomb",
+        x: play.x + radius + Math.random() * Math.max(1, play.w - radius * 2),
+        y: play.y + play.h * 0.18 + Math.random() * play.h * 0.58,
+        radius,
+        age: -i * 520,
+        life: config.COMBO_BOMB_LIFE,
+        tickTimer: 0
+      });
+    }
+  }
+
+  function spawnWingmanPass(pass) {
+    const play = state.view.play;
+    const crash = pass === config.COMBO_WINGMAN_PASSES - 1;
+    const path = crash ? wingmanCrashPath() : randomWingmanPath();
+    state.comboEffects.push({
+      type: "wingman",
+      pass,
+      crash,
+      start: path.start,
+      end: path.end,
+      x: path.start.x,
+      y: path.start.y,
+      age: 0,
+      life: pass === config.COMBO_WINGMAN_PASSES - 1 ? 1050 : 900,
+      shotTimer: 90
+    });
+  }
+
+  function randomWingmanPath() {
+    const play = state.view.play;
+    const margin = 42;
+    const horizontal = Math.random() > 0.5;
+    const reverse = Math.random() > 0.5;
+
+    if (horizontal) {
+      const y = play.y + play.h * (0.16 + Math.random() * 0.68);
+      return {
+        start: { x: reverse ? play.x + play.w + margin : play.x - margin, y },
+        end: { x: reverse ? play.x - margin : play.x + play.w + margin, y: y + (Math.random() - 0.5) * play.h * 0.22 }
+      };
+    }
+
+    const x = play.x + play.w * (0.16 + Math.random() * 0.68);
+    return {
+      start: { x, y: reverse ? play.y + play.h + margin : play.y - margin },
+      end: { x: x + (Math.random() - 0.5) * play.w * 0.24, y: reverse ? play.y - margin : play.y + play.h + margin }
+    };
+  }
+
+  function wingmanCrashPath() {
+    const play = state.view.play;
+    const margin = 52;
+    const center = { x: play.x + play.w / 2, y: play.y + play.h / 2 };
+    const fromLeft = Math.random() > 0.5;
+
+    return {
+      start: {
+        x: fromLeft ? play.x - margin : play.x + play.w + margin,
+        y: center.y - play.h * 0.18
+      },
+      end: center
+    };
+  }
+
+  function spawnShockwave(x, y) {
+    const play = state.view.play;
+    const corners = [
+      Math.hypot(x - play.x, y - play.y),
+      Math.hypot(x - (play.x + play.w), y - play.y),
+      Math.hypot(x - play.x, y - (play.y + play.h)),
+      Math.hypot(x - (play.x + play.w), y - (play.y + play.h))
+    ];
+
+    state.comboEffects.push({
+      type: "shockwave",
+      x,
+      y,
+      radius: 0,
+      maxRadius: Math.max(...corners) + 28,
+      age: 0,
+      life: 1150,
+      hitEnemies: []
+    });
+  }
+
+  function spawnComboLaser() {
+    const play = state.view.play;
+    state.comboEffects.push({
+      type: "laser",
+      x: play.x + play.w / 2,
+      centerX: play.x + play.w / 2,
+      sweepRange: Math.max(24, play.w * 0.26),
+      width: Math.max(44, play.w * 0.14),
+      age: 0,
+      life: config.COMBO_LASER_LIFE,
+      tickTimer: 0
+    });
+  }
+
+  function spawnComboFinale() {
+    spawnComboMissiles(10, 3);
   }
 
   function cooldownUpgradeCount() {

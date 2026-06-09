@@ -90,6 +90,7 @@
     state.explosions.length = 0;
     state.powerups.length = 0;
     state.planets.length = 0;
+    state.comboEffects.length = 0;
     state.touch.movePointerId = null;
     state.touch.moveTarget = null;
     state.touch.firePointerId = null;

@@ -14,9 +14,15 @@
     // Each multishot stack adds one projectile to each side of the centre shot.
     MAX_SPREAD_LEVEL: 3,
 
-    // Every 15 centre-shot combo hits spawns 5 bottom-entry seeker missiles.
-    COMBO_MISSILE_STEP: 15,
+    // Combo reward tiers trigger on centre-shot combo milestones.
+    COMBO_REWARD_STEP: 10,
     COMBO_MISSILE_COUNT: 5,
+    COMBO_BOMB_COUNT: 6,
+    COMBO_BOMB_LIFE: 3000,
+    COMBO_BOMB_TICK: 500,
+    COMBO_WINGMAN_PASSES: 6,
+    COMBO_LASER_LIFE: 6000,
+    COMBO_LASER_TICK: 500,
     RESTART_KEY: "KeyR",
     SPEED_KEY: "KeyE",
 

@@ -21,6 +21,7 @@
     explosions: [],
     powerups: [],
     planets: [],
+    comboEffects: [],
 
     view: {
       width: 0,

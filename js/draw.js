@@ -142,6 +142,7 @@
     drawProjectiles();
     drawEnemies(now);
     if (state.game.player.alive) drawPlayer(now);
+    drawComboEffects();
     drawExplosions();
     ctx.restore();
   }
@@ -376,6 +377,96 @@
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  function drawComboEffects() {
+    for (const effect of state.comboEffects) {
+      if (effect.age < 0) continue;
+      if (effect.type === "bomb") drawBombEffect(effect);
+      else if (effect.type === "wingman") drawWingmanEffect(effect);
+      else if (effect.type === "shockwave") drawShockwaveEffect(effect);
+      else if (effect.type === "laser") drawLaserEffect(effect);
+      else if (effect.type === "tracer") drawTracerEffect(effect);
+    }
+  }
+
+  function drawBombEffect(effect) {
+    const ctx = state.ctx;
+    const t = Math.max(0, Math.min(1, effect.age / effect.life));
+    ctx.save();
+    ctx.globalAlpha = 0.28 + Math.sin(effect.age * 0.018) * 0.08;
+    ctx.fillStyle = "rgba(255, 184, 77, 0.18)";
+    ctx.strokeStyle = "#ffb84d";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = 0.55 * (1 - t);
+    ctx.strokeStyle = "#fff5a8";
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, effect.radius * (0.25 + t * 0.75), 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWingmanEffect(effect) {
+    const ctx = state.ctx;
+    const angle = Math.atan2(effect.end.y - effect.start.y, effect.end.x - effect.start.x) + Math.PI / 2;
+    ctx.save();
+    ctx.translate(effect.x, effect.y);
+    ctx.rotate(angle);
+    ctx.shadowColor = effect.crash ? "#ffb84d" : "#a8f7ff";
+    ctx.shadowBlur = 12;
+    drawPixelShip(28, effect.crash ? "#ffb84d" : "#a8f7ff", "#1f6fd1", "#fff5a8", true);
+    ctx.restore();
+  }
+
+  function drawShockwaveEffect(effect) {
+    const ctx = state.ctx;
+    const t = Math.max(0, Math.min(1, effect.age / effect.life));
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 0.8 - t * 0.6);
+    ctx.strokeStyle = "#a8f7ff";
+    ctx.shadowColor = "#a8f7ff";
+    ctx.shadowBlur = 16;
+    ctx.lineWidth = Math.max(3, 8 - t * 5);
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = Math.max(0, 0.22 - t * 0.14);
+    ctx.fillStyle = "#a8f7ff";
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawLaserEffect(effect) {
+    const ctx = state.ctx;
+    const play = state.view.play;
+    const pulse = 0.65 + Math.sin(effect.age * 0.018) * 0.18;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = "rgba(157, 255, 250, 0.18)";
+    ctx.fillRect(effect.x - effect.width / 2, play.y, effect.width, play.h);
+    ctx.fillStyle = "rgba(245, 255, 255, 0.72)";
+    ctx.fillRect(effect.x - effect.width * 0.16, play.y, effect.width * 0.32, play.h);
+    ctx.restore();
+  }
+
+  function drawTracerEffect(effect) {
+    const ctx = state.ctx;
+    const alpha = Math.max(0, 1 - effect.age / effect.life);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "#a8f7ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(effect.x1, effect.y1);
+    ctx.lineTo(effect.x2, effect.y2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawPlayfieldFrame() {
