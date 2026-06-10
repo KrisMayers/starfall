@@ -112,7 +112,7 @@
   function drawProjectiles() {
     const ctx = state.ctx;
     ctx.save();
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = mobileBlur(12);
     for (const projectile of state.projectiles) {
       ctx.shadowColor = projectile.seeker ? "#ffe45c" : projectile.hostile ? "#ffb84d" : "#8efbff";
       const angle = Math.atan2(projectile.vx || 0, -projectile.vy || 1);
@@ -232,7 +232,7 @@
     ctx.save();
     ctx.strokeStyle = "#79cfff";
     ctx.shadowColor = "#4ad7ff";
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = mobileBlur(12);
     ctx.globalAlpha = 0.72 + Math.sin(now * 0.006) * 0.12;
     for (let i = 0; i < layers; i += 1) {
       ctx.lineWidth = Math.max(2, playerSize * 0.045);
@@ -286,7 +286,7 @@
     const color = powerColor(type);
     if (glow) {
       ctx.shadowColor = color;
-      ctx.shadowBlur = size * 0.45;
+      ctx.shadowBlur = mobileBlur(size * 0.45);
     }
 
     ctx.fillStyle = "#0b1224";
@@ -431,7 +431,7 @@
     ctx.translate(effect.x, effect.y);
     ctx.rotate(angle);
     ctx.shadowColor = effect.crash ? "#ffb84d" : "#a8f7ff";
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = mobileBlur(12);
     drawPixelShip(28, effect.crash ? "#ffb84d" : "#a8f7ff", "#1f6fd1", "#fff5a8", true);
     ctx.restore();
   }
@@ -443,7 +443,7 @@
     ctx.globalAlpha = Math.max(0, 0.8 - t * 0.6);
     ctx.strokeStyle = "#a8f7ff";
     ctx.shadowColor = "#a8f7ff";
-    ctx.shadowBlur = 16;
+    ctx.shadowBlur = mobileBlur(16);
     ctx.lineWidth = Math.max(3, 8 - t * 5);
     ctx.beginPath();
     ctx.arc(effect.x, effect.y, effect.radius, 0, Math.PI * 2);
@@ -558,7 +558,7 @@
     if (state.view.compactUi) drawTextBackplate(0, 0, ctx.measureText(`x${combo}`).width + 12, fontSize + 6, "right");
     ctx.fillStyle = combo > 0 ? "#ffe45c" : "rgba(231, 252, 255, 0.32)";
     ctx.shadowColor = combo > 5 ? "#ff7ab6" : "#ffe45c";
-    ctx.shadowBlur = combo > 5 ? 10 + tier * 0.8 + chaos * 0.18 : 6;
+    ctx.shadowBlur = mobileBlur(combo > 5 ? 10 + tier * 0.8 + chaos * 0.18 : 6);
     ctx.fillText(`x${combo}`, 0, 0);
     ctx.restore();
   }
@@ -576,7 +576,7 @@
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
     ctx.font = `700 ${uiFontSize(11)}px "Trebuchet MS", Arial, sans-serif`;
-    ctx.shadowBlur = 7;
+    ctx.shadowBlur = mobileBlur(7);
     for (let i = 0; i < stats.length; i += 1) {
       if (compact) drawTextBackplate(x, y + i * lineH, ctx.measureText(stats[i].text).width + 12, lineH + 4, "right");
       ctx.fillStyle = stats[i].color;
@@ -636,7 +636,7 @@
 
     ctx.save();
     ctx.shadowColor = "#ff4b5d";
-    ctx.shadowBlur = flash ? 8 + flashPulse * 12 : 0;
+    ctx.shadowBlur = flash ? mobileBlur(8 + flashPulse * 12) : 0;
     ctx.strokeStyle = overheated
       ? `rgba(255, ${Math.round(75 + flashPulse * 80)}, ${Math.round(93 + flashPulse * 70)}, ${0.9 + flashPulse * 0.1})`
       : "rgba(230, 255, 250, 0.62)";
@@ -667,7 +667,7 @@
 
     ctx.save();
     ctx.shadowColor = "#ff4b5d";
-    ctx.shadowBlur = flash ? 8 + flashPulse * 12 : 0;
+    ctx.shadowBlur = flash ? mobileBlur(8 + flashPulse * 12) : 0;
     ctx.strokeStyle = overheated
       ? `rgba(255, ${Math.round(75 + flashPulse * 80)}, ${Math.round(93 + flashPulse * 70)}, ${0.9 + flashPulse * 0.1})`
       : "rgba(230, 255, 250, 0.62)";
@@ -705,7 +705,7 @@
     ctx.font = `700 ${uiFontSize(12)}px "Trebuchet MS", Arial, sans-serif`;
     ctx.fillStyle = "rgba(231, 252, 255, 0.82)";
     ctx.shadowColor = "#ffe45c";
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = mobileBlur(10);
     ctx.fillText("E", startX + size / 2, startY - Math.max(12, size * 0.45));
     ctx.restore();
 
@@ -756,7 +756,7 @@
     ctx.save();
     ctx.globalAlpha = active ? 0.82 : 0.32;
     ctx.shadowColor = color;
-    ctx.shadowBlur = active ? 12 : 0;
+    ctx.shadowBlur = active ? mobileBlur(12) : 0;
     ctx.fillStyle = "rgba(8, 15, 31, 0.72)";
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -808,7 +808,7 @@
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#f5feff";
     ctx.shadowColor = "#52edff";
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = mobileBlur(18);
     ctx.font = `700 ${Math.max(18, Math.min(34, play.w * 0.078))}px "Trebuchet MS", Arial, sans-serif`;
     const pulse = 0.72 + (Math.sin(now * 0.004) + 1) * 0.14;
     ctx.globalAlpha = pulse;
@@ -834,7 +834,7 @@
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#f5feff";
     ctx.shadowColor = "#52edff";
-    ctx.shadowBlur = 20;
+    ctx.shadowBlur = mobileBlur(20);
     ctx.font = `700 ${Math.max(38, Math.min(78, play.w * 0.17))}px "Trebuchet MS", Arial, sans-serif`;
     ctx.fillText(`${state.game.score}`, play.x + play.w / 2, play.y + play.h * 0.44);
 
@@ -864,7 +864,7 @@
     if (state.view.compactUi) drawTextBackplate(x, y, ctx.measureText(text).width + 14, uiFontSize(20), align, "middle");
     ctx.fillStyle = "#e7fcff";
     ctx.shadowColor = "#2de6ff";
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = mobileBlur(12);
     ctx.fillText(text, x, y);
     ctx.restore();
   }
@@ -887,6 +887,10 @@
 
   function uiFontSize(base) {
     return Math.max(base - 2, Math.min(base + 4, Math.round(state.view.width * 0.018)));
+  }
+
+  function mobileBlur(value) {
+    return state.view.compactUi ? Math.min(3, value * 0.25) : value;
   }
 
   function powerColor(type) {

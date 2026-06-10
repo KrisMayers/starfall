@@ -893,7 +893,8 @@
 
   function addExplosion(x, y, size, color) {
     const particles = [];
-    for (let i = 0; i < 18; i += 1) {
+    const particleCount = state.view.compactUi ? 9 : 18;
+    for (let i = 0; i < particleCount; i += 1) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 48 + Math.random() * 150;
       particles.push({

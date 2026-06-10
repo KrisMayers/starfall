@@ -12,14 +12,13 @@
     const canvas = state.canvas;
     const ctx = state.ctx;
 
-    view.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     view.width = Math.floor(window.innerWidth);
     view.height = Math.floor(window.innerHeight);
+    view.compactUi = view.width < 620;
+    view.dpr = Math.max(1, Math.min(view.compactUi ? 1 : 2, window.devicePixelRatio || 1));
     canvas.width = Math.floor(view.width * view.dpr);
     canvas.height = Math.floor(view.height * view.dpr);
     ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-
-    view.compactUi = view.width < 620;
 
     if (view.compactUi) {
       view.play = { x: 0, y: 0, w: view.width, h: view.height };
@@ -60,11 +59,17 @@
     const play = state.view.play;
     state.stars.length = 0;
 
-    const layers = [
-      { count: 80, speed: 18, size: 1, alpha: 0.45 },
-      { count: 46, speed: 38, size: 1.5, alpha: 0.72 },
-      { count: 22, speed: 76, size: 2.2, alpha: 0.95 }
-    ];
+    const layers = state.view.compactUi
+      ? [
+        { count: 44, speed: 18, size: 1, alpha: 0.42 },
+        { count: 24, speed: 38, size: 1.5, alpha: 0.68 },
+        { count: 10, speed: 76, size: 2, alpha: 0.9 }
+      ]
+      : [
+        { count: 80, speed: 18, size: 1, alpha: 0.45 },
+        { count: 46, speed: 38, size: 1.5, alpha: 0.72 },
+        { count: 22, speed: 76, size: 2.2, alpha: 0.95 }
+      ];
 
     for (const layer of layers) {
       for (let i = 0; i < layer.count; i += 1) {
