@@ -3,25 +3,25 @@
 
   const state = window.StarfallState;
   const SOUND_PATHS = {
-    ambience: "sounds/background-ambience.wav",
-    bossAmbience: "sounds/boss-ambience.wav",
-    bossDeath: "sounds/boss-death.wav",
-    bossShot: "sounds/boss-single-shot.wav",
-    comboBombAppear: "sounds/combo-bomb-1.wav",
-    comboFlyby: "sounds/combo-flyby.wav",
-    comboShockwave: "sounds/combo-flyby-shockwave.wav",
-    comboLaser: "sounds/combo-laser.mp3",
-    comboMissile: "sounds/combo-missile-firing.wav",
-    gameOver: "sounds/game-over.wav",
-    enemyDeath: "sounds/player-enemy-death.wav",
-    playerShot: "sounds/player-projectile-single-shot.wav",
-    powerCooldown: "sounds/powerup-cooldown.wav",
-    powerMultishot: "sounds/powerup-multishot.wav",
-    powerProjectileSpeed: "sounds/powerup-projectile-speed.wav",
-    powerShield: "sounds/powerup-shield.wav",
-    powerSpeed: "sounds/powerup-speed.wav",
-    weaponEmpty: "sounds/weapon-empty.wav",
-    impact: "sounds/projectile-impact.wav"
+    ambience: "sounds/background-ambience.ogg",
+    bossAmbience: "sounds/boss-ambience.ogg",
+    bossDeath: "sounds/boss-death.ogg",
+    bossShot: "sounds/boss-single-shot.ogg",
+    comboBombAppear: "sounds/combo-bomb-1.ogg",
+    comboFlyby: "sounds/combo-flyby.ogg",
+    comboShockwave: "sounds/combo-flyby-shockwave.ogg",
+    comboLaser: "sounds/combo-laser.ogg",
+    comboMissile: "sounds/combo-missile-firing.ogg",
+    gameOver: "sounds/game-over.ogg",
+    enemyDeath: "sounds/player-enemy-death.ogg",
+    playerShot: "sounds/player-projectile-single-shot.ogg",
+    powerCooldown: "sounds/powerup-cooldown.ogg",
+    powerMultishot: "sounds/powerup-multishot.ogg",
+    powerProjectileSpeed: "sounds/powerup-projectile-speed.ogg",
+    powerShield: "sounds/powerup-shield.ogg",
+    powerSpeed: "sounds/powerup-speed.ogg",
+    weaponEmpty: "sounds/weapon-empty.ogg",
+    impact: "sounds/projectile-impact.ogg"
   };
 
   const SOUND_SETTINGS = {
@@ -54,7 +54,7 @@
 
   for (const [name, path] of Object.entries(SOUND_PATHS)) {
     const audio = new Audio(path);
-    audio.preload = "auto";
+    audio.preload = name === "ambience" ? "none" : "metadata";
     if (LOOPING_SOUNDS.has(name)) audio.loop = true;
     sounds[name] = audio;
   }
@@ -106,6 +106,7 @@
   }
 
   function startAmbience() {
+    if (state.view.compactUi) return;
     startLoop("ambience");
   }
 
