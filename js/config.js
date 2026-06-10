@@ -11,6 +11,9 @@
     SPEED_STACK_MAX: 3,
     SHIELD_STACK_MAX: 3,
 
+    PLAYER_SPRITE_SCALE: 1.7,
+    PLAYER_HITBOX_SCALE: 1.25,
+
     // Each multishot stack adds one projectile to each side of the centre shot.
     MAX_SPREAD_LEVEL: 3,
 
@@ -21,7 +24,7 @@
     COMBO_BOMB_LIFE: 3000,
     COMBO_BOMB_TICK: 500,
     COMBO_WINGMAN_PASSES: 6,
-    COMBO_LASER_LIFE: 6000,
+    COMBO_LASER_LIFE: 8000,
     COMBO_LASER_TICK: 500,
     RESTART_KEY: "KeyR",
     SPEED_KEY: "KeyE",

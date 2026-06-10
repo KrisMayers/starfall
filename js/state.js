@@ -48,6 +48,7 @@
       cooldownCapacity: config.BASE_COOLDOWN_CAPACITY,
       cooldownCharge: config.BASE_COOLDOWN_CAPACITY,
       cooldownLocked: false,
+      cooldownFlashUntil: 0,
       speedStacks: 0,
       shieldLayers: 0,
       spreadLevel: 0,

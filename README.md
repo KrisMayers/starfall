@@ -15,6 +15,7 @@ Open `index.html` in a browser to play.
 - `game.js` - tiny startup file: resize, reset, input binding, and game loop.
 - `js/config.js` - constants, enemy colours, enemy stats, boss base stats.
 - `js/state.js` - shared game state: player, arrays of enemies/projectiles/power-ups, timers, canvas references.
+- `js/audio.js` - sound loading, ambience control, sound effect playback, and per-sound volume/cooldown settings.
 - `js/levels.js` - timed level duration helpers, spawn cadence, and enemy speed curves.
 - `js/layout.js` - responsive portrait playfield, star rebuilds, reset logic, player movement bounds.
 - `js/spawns.js` - enemy, boss, planet, and power-up creation.
@@ -25,9 +26,9 @@ Open `index.html` in a browser to play.
 
 ## Assets
 
-There are no external image assets yet, and the sprites are not CSS.
+The player ship uses `assets/player.png`.
 
-All prototype art is drawn directly on the HTML canvas in `js/draw.js` using canvas commands like `fillRect`, `arc`, `ellipse`, and simple path shapes. The pixel-style player, enemies, boss, projectiles, power-up icons, explosions, stars, and planets are code-drawn placeholders.
+Most prototype art is drawn directly on the HTML canvas in `js/draw.js` using canvas commands like `fillRect`, `arc`, `ellipse`, and simple path shapes. The enemies, boss, projectiles, power-up icons, explosions, stars, and planets are still code-drawn placeholders.
 
 When real assets are ready, the usual path is:
 

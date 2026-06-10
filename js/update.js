@@ -7,15 +7,24 @@
   const utils = window.StarfallUtils;
   const layout = window.StarfallLayout;
   const spawns = window.StarfallSpawns;
+  const audio = window.StarfallAudio;
 
   function shoot(now) {
     const game = state.game;
     const player = game.player;
-    if (!game.running || game.cooldownLocked || game.cooldownCharge <= 0) return;
+    if (!game.running) return;
+    if (game.cooldownLocked || game.cooldownCharge <= 0) {
+      game.cooldownFlashUntil = now + 260;
+      audio.play("weaponEmpty");
+      return;
+    }
 
     // Cooldown is a pool: each trigger pull spends a chunk, and overdraw locks it until full.
     game.cooldownCharge -= config.SHOT_COOLDOWN_COST;
-    if (game.cooldownCharge <= 0) game.cooldownLocked = true;
+    if (game.cooldownCharge <= 0) {
+      game.cooldownCharge = 0;
+      game.cooldownLocked = true;
+    }
 
     // Multishot adds symmetric side shots; only the centre shot is allowed to affect combo.
     const projectileCount = 1 + game.spreadLevel * 2;
@@ -35,6 +44,8 @@
         comboEligible: offset === 0
       });
     }
+
+    audio.play("playerShot");
   }
 
   function activateSpeed(now) {
@@ -43,6 +54,7 @@
 
     game.speedStacks -= 1;
     game.speedBoostUntil = now + config.SPEED_BOOST_DURATION;
+    audio.play("powerSpeed");
   }
 
   function update(dt, now) {
@@ -65,6 +77,7 @@
     updateComboEffects(dt);
     updateExplosions(dt);
     checkCollisions(now);
+    audio.syncBossAmbience(state.game.running && !!spawns.activeBoss());
   }
 
   function updateCooldown(dt) {
@@ -305,6 +318,8 @@
         vy: Math.cos(angle) * speed
       });
     }
+
+    audio.play("bossShot");
   }
 
   function updatePowerups(dt) {
@@ -357,6 +372,11 @@
       const effect = state.comboEffects[i];
       effect.age += dt * 1000;
 
+      if (effect.type === "bomb" && !effect.appearSoundPlayed && effect.age >= 0) {
+        effect.appearSoundPlayed = true;
+        audio.play("comboBombAppear");
+      }
+
       if (effect.age < 0) continue;
 
       if (effect.type === "bomb") updateBombEffect(effect, dt);
@@ -366,6 +386,7 @@
 
       if (effect.age > effect.life) {
         if (effect.type === "wingman" && effect.pass < config.COMBO_WINGMAN_PASSES - 1) spawnWingmanPass(effect.pass + 1);
+        if (effect.type === "laser") audio.stopLoop("comboLaser");
         state.comboEffects.splice(i, 1);
       }
     }
@@ -409,6 +430,7 @@
     if (!targetInfo) return;
 
     effect.shotTimer = 170;
+    audio.play("playerShot");
     state.comboEffects.push({
       type: "tracer",
       x1: effect.x,
@@ -524,7 +546,10 @@
     if (!state.game.running || !utils.rectsOverlap(utils.projectileRect(projectile), utils.playerProtectionRect())) return;
 
     state.projectiles.splice(index, 1);
-    if (absorbPlayerHit(projectile.x, projectile.y, projectile.w * 2.2)) return;
+    if (absorbPlayerHit(projectile.x, projectile.y, projectile.w * 2.2)) {
+      audio.play("impact");
+      return;
+    }
 
     endGame();
   }
@@ -566,6 +591,7 @@
     enemy.health -= amount;
     if (enemy.health > 0) {
       addExplosion(enemy.x, enemy.y, enemy.w * 0.42, color);
+      audio.play("impact");
       return;
     }
 
@@ -579,6 +605,8 @@
     const color = useEnemyColor ? enemy.kind.body : "#79ffe1";
     addExplosion(enemy.x, enemy.y, enemy.w * (enemy.type === "saucer" ? 1.7 : 1.2), color);
     state.enemies.splice(index, 1);
+    if (killedType === "saucer") audio.play("bossDeath");
+    else audio.play("enemyDeath", { volume: 0.42 + Math.random() * 0.12 });
     incrementScore(enemy.points);
     maybeDropEnemyReward(killedType, dropX, dropY);
   }
@@ -666,6 +694,7 @@
     const player = state.game.player;
     const centerOffset = (count - 1) / 2;
     const targets = distinctEnemyTargets(count);
+    audio.play("comboMissile");
 
     // Combo missiles reserve different targets where possible so they spread their value.
     for (let i = 0; i < count; i += 1) {
@@ -708,7 +737,8 @@
         radius,
         age: -i * 520,
         life: config.COMBO_BOMB_LIFE,
-        tickTimer: 0
+        tickTimer: 0,
+        appearSoundPlayed: false
       });
     }
   }
@@ -717,6 +747,7 @@
     const play = state.view.play;
     const crash = pass === config.COMBO_WINGMAN_PASSES - 1;
     const path = crash ? wingmanCrashPath() : randomWingmanPath();
+    audio.play("comboFlyby");
     state.comboEffects.push({
       type: "wingman",
       pass,
@@ -769,6 +800,7 @@
 
   function spawnShockwave(x, y) {
     const play = state.view.play;
+    audio.play("comboShockwave");
     const corners = [
       Math.hypot(x - play.x, y - play.y),
       Math.hypot(x - (play.x + play.w), y - play.y),
@@ -790,6 +822,7 @@
 
   function spawnComboLaser() {
     const play = state.view.play;
+    audio.startLoop("comboLaser");
     state.comboEffects.push({
       type: "laser",
       x: play.x + play.w / 2,
@@ -826,25 +859,35 @@
       state.game.cooldownCapacity += 500;
       state.game.cooldownCharge = Math.min(state.game.cooldownCapacity, state.game.cooldownCharge + 500);
       if (state.game.cooldownLocked && state.game.cooldownCharge >= state.game.cooldownCapacity) state.game.cooldownLocked = false;
+      audio.play("powerCooldown");
     } else if (power.type === "speed") {
       state.game.speedStacks = Math.min(config.SPEED_STACK_MAX, state.game.speedStacks + 1);
+      audio.play("powerSpeed");
     } else if (power.type === "invulnerable") {
       state.game.shieldLayers = Math.min(config.SHIELD_STACK_MAX, state.game.shieldLayers + 1);
+      audio.play("powerShield");
     } else if (power.type === "spread") {
       if (state.game.spreadLevel >= config.MAX_SPREAD_LEVEL) return;
       state.game.spreadLevel += 1;
+      audio.play("powerMultishot");
     } else if (power.type === "projectileSpeed") {
       state.game.projectileSpeedMultiplier *= 1.025;
+      audio.play("powerProjectileSpeed");
     }
   }
 
   function endGame() {
     const game = state.game;
+    if (!game.running) return;
     game.running = false;
     game.screen = "gameover";
     game.player.alive = false;
     game.player.exploding = true;
     game.speedBoostUntil = 0;
+    audio.stopAmbience();
+    audio.syncBossAmbience(false);
+    audio.stopLoop("comboLaser");
+    audio.play("gameOver");
     addExplosion(game.player.x, game.player.y, game.player.w * 2.2, "#5af3ff");
   }
 

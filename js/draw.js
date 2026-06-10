@@ -6,6 +6,8 @@
   const levels = window.StarfallLevels;
   const layout = window.StarfallLayout;
   const spawns = window.StarfallSpawns;
+  const playerSprite = new Image();
+  playerSprite.src = "assets/player.png";
 
   function draw(now) {
     const ctx = state.ctx;
@@ -206,8 +208,20 @@
     const game = state.game;
     ctx.save();
     ctx.translate(game.player.x, game.player.y);
-    drawShieldLayers(game.player.w, game.shieldLayers, now);
-    drawPixelShip(game.player.w, "#5af3ff", "#1f6fd1", "#ffef7a", true);
+    drawShieldLayers(game.player.w * config.PLAYER_SPRITE_SCALE, game.shieldLayers, now);
+    if (playerSprite.complete && playerSprite.naturalWidth > 0) {
+      drawPlayerSprite(game.player.w * config.PLAYER_SPRITE_SCALE, game.player.h * config.PLAYER_SPRITE_SCALE);
+    } else {
+      drawPixelShip(game.player.w, "#5af3ff", "#1f6fd1", "#ffef7a", true);
+    }
+    ctx.restore();
+  }
+
+  function drawPlayerSprite(width, height) {
+    const ctx = state.ctx;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(playerSprite, -width / 2, -height / 2, width, height);
     ctx.restore();
   }
 
@@ -595,9 +609,9 @@
     ctx.restore();
   }
 
-  function drawCooldown() {
+  function drawCooldown(now) {
     if (state.view.compactUi) {
-      drawHorizontalCooldown();
+      drawHorizontalCooldown(now);
       return;
     }
 
@@ -616,13 +630,19 @@
       : Math.min(state.view.height - barH - 18, play.y + play.h - barH);
     const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
     const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
+    const flash = overheated && now < state.game.cooldownFlashUntil;
+    const flashPulse = flash ? 0.5 + Math.sin(now * 0.075) * 0.5 : 0;
     const accent = overheated ? "#ff4b5d" : "#33f5ca";
 
     ctx.save();
-    ctx.strokeStyle = overheated ? "rgba(255, 75, 93, 0.9)" : "rgba(230, 255, 250, 0.62)";
-    ctx.lineWidth = 2;
+    ctx.shadowColor = "#ff4b5d";
+    ctx.shadowBlur = flash ? 8 + flashPulse * 12 : 0;
+    ctx.strokeStyle = overheated
+      ? `rgba(255, ${Math.round(75 + flashPulse * 80)}, ${Math.round(93 + flashPulse * 70)}, ${0.9 + flashPulse * 0.1})`
+      : "rgba(230, 255, 250, 0.62)";
+    ctx.lineWidth = flash ? 2 + flashPulse * 2 : 2;
     ctx.strokeRect(x, y, barW, barH);
-    ctx.fillStyle = overheated ? "rgba(255, 75, 93, 0.18)" : "rgba(51, 245, 202, 0.16)";
+    ctx.fillStyle = overheated ? `rgba(255, 75, 93, ${0.18 + flashPulse * 0.22})` : "rgba(51, 245, 202, 0.16)";
     ctx.fillRect(x + 3, y + 3, barW - 6, barH - 6);
     ctx.fillStyle = accent;
     ctx.globalAlpha = ready >= 1 ? 1 : 0.82;
@@ -631,7 +651,7 @@
     ctx.restore();
   }
 
-  function drawHorizontalCooldown() {
+  function drawHorizontalCooldown(now) {
     const ctx = state.ctx;
     const controls = layout.mobileControls();
     const capacitySteps = Math.max(0, (state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500);
@@ -641,13 +661,19 @@
     const y = controls ? controls.fire.y - controls.radius - barH - 18 : state.view.height - barH - 72;
     const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
     const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
+    const flash = overheated && now < state.game.cooldownFlashUntil;
+    const flashPulse = flash ? 0.5 + Math.sin(now * 0.075) * 0.5 : 0;
     const accent = overheated ? "#ff4b5d" : "#33f5ca";
 
     ctx.save();
-    ctx.strokeStyle = overheated ? "rgba(255, 75, 93, 0.9)" : "rgba(230, 255, 250, 0.62)";
-    ctx.lineWidth = 2;
+    ctx.shadowColor = "#ff4b5d";
+    ctx.shadowBlur = flash ? 8 + flashPulse * 12 : 0;
+    ctx.strokeStyle = overheated
+      ? `rgba(255, ${Math.round(75 + flashPulse * 80)}, ${Math.round(93 + flashPulse * 70)}, ${0.9 + flashPulse * 0.1})`
+      : "rgba(230, 255, 250, 0.62)";
+    ctx.lineWidth = flash ? 2 + flashPulse * 2 : 2;
     ctx.strokeRect(x, y, barW, barH);
-    ctx.fillStyle = overheated ? "rgba(255, 75, 93, 0.18)" : "rgba(51, 245, 202, 0.16)";
+    ctx.fillStyle = overheated ? `rgba(255, 75, 93, ${0.18 + flashPulse * 0.22})` : "rgba(51, 245, 202, 0.16)";
     ctx.fillRect(x + 3, y + 3, barW - 6, barH - 6);
     ctx.fillStyle = accent;
     ctx.globalAlpha = ready >= 1 ? 1 : 0.82;

@@ -1,6 +1,7 @@
 (function () {
   "use strict";
 
+  const config = window.StarfallConfig;
   const state = window.StarfallState;
 
   function clamp(value, min, max) {
@@ -34,11 +35,13 @@
 
   function playerRect() {
     const player = state.game.player;
+    const width = player.w * config.PLAYER_HITBOX_SCALE;
+    const height = player.h * config.PLAYER_HITBOX_SCALE;
     return {
-      x: player.x - player.w / 2,
-      y: player.y - player.h / 2,
-      w: player.w,
-      h: player.h
+      x: player.x - width / 2,
+      y: player.y - height / 2,
+      w: width,
+      h: height
     };
   }
 
@@ -46,7 +49,7 @@
     const player = state.game.player;
     if (state.game.shieldLayers <= 0) return playerRect();
 
-    const radius = player.w * (0.72 + (state.game.shieldLayers - 1) * 0.18);
+    const radius = player.w * config.PLAYER_HITBOX_SCALE * (0.72 + (state.game.shieldLayers - 1) * 0.18);
     return {
       x: player.x - radius,
       y: player.y - radius,

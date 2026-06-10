@@ -109,6 +109,7 @@
     game.cooldownCapacity = config.BASE_COOLDOWN_CAPACITY;
     game.cooldownCharge = config.BASE_COOLDOWN_CAPACITY;
     game.cooldownLocked = false;
+    game.cooldownFlashUntil = 0;
     game.speedStacks = 0;
     game.shieldLayers = 0;
     game.spreadLevel = 0;
@@ -119,6 +120,8 @@
     player.exploding = false;
     player.x = play.x + play.w / 2;
     player.y = playerHomeY();
+
+    window.StarfallAudio.syncForScreen();
   }
 
   function playerVerticalBounds() {

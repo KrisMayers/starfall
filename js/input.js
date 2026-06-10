@@ -5,9 +5,11 @@
   const state = window.StarfallState;
   const layout = window.StarfallLayout;
   const update = window.StarfallUpdate;
+  const audio = window.StarfallAudio;
 
   function bindInput() {
     window.addEventListener("keydown", (event) => {
+      audio.unlock();
       state.keys.add(event.code);
 
       if (event.code === "Space") {
@@ -35,6 +37,7 @@
   }
 
   function handlePointerDown(event) {
+    audio.unlock();
     if (!state.view.compactUi) return;
 
     event.preventDefault();
