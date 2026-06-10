@@ -7,7 +7,21 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
-    <canvas id="game" aria-label="Portrait arcade shooter game"></canvas>
+    <main id="game-shell">
+      <canvas id="game" aria-label="Portrait arcade shooter game"></canvas>
+      <section id="mobile-controls" aria-label="Mobile game controls">
+        <div class="dpad" aria-label="Movement controls">
+          <button class="control-button dpad-up" type="button" data-control="up" aria-label="Move up">▲</button>
+          <button class="control-button dpad-left" type="button" data-control="left" aria-label="Move left">◀</button>
+          <button class="control-button dpad-right" type="button" data-control="right" aria-label="Move right">▶</button>
+          <button class="control-button dpad-down" type="button" data-control="down" aria-label="Move down">▼</button>
+        </div>
+        <div class="action-pad" aria-label="Action controls">
+          <button class="control-button action-fire" type="button" data-control="fire" aria-label="Shoot">FIRE</button>
+          <button class="control-button action-boost" type="button" data-control="boost" aria-label="Boost">BOOST</button>
+        </div>
+      </section>
+    </main>
     <script src="js/config.js"></script>
     <script src="js/state.js"></script>
     <script src="js/audio.js"></script>

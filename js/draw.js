@@ -620,11 +620,6 @@
   }
 
   function drawCooldown(now) {
-    if (state.view.compactUi) {
-      drawHorizontalCooldown(now);
-      return;
-    }
-
     const ctx = state.ctx;
     const play = state.view.play;
     const barW = Math.max(14, Math.min(22, state.view.width * 0.026));
@@ -634,9 +629,9 @@
       ? Math.max(96, state.view.height * 0.18)
       : Math.max(130, state.view.height * 0.24);
     const barH = Math.min(maxBarH, baseBarH + capacitySteps * 14);
-    const x = state.view.compactUi ? play.x : Math.max(15, play.x - 64);
+    const x = state.view.compactUi ? play.x + 10 : Math.max(15, play.x - 64);
     const y = state.view.compactUi
-      ? Math.min(state.view.height - barH - 14, play.y + play.h + 14)
+      ? play.y + play.h - barH - 12
       : Math.min(state.view.height - barH - 18, play.y + play.h - barH);
     const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
     const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
@@ -661,52 +656,18 @@
     ctx.restore();
   }
 
-  function drawHorizontalCooldown(now) {
-    const ctx = state.ctx;
-    const controls = layout.mobileControls();
-    const capacitySteps = Math.max(0, (state.game.cooldownCapacity - config.BASE_COOLDOWN_CAPACITY) / 500);
-    const barW = Math.min(state.view.width * 0.42, Math.max(92, state.view.width * 0.28) + capacitySteps * 18);
-    const barH = Math.max(14, Math.min(18, state.view.height * 0.022));
-    const x = 12;
-    const y = controls ? controls.fire.y - controls.radius - barH - 18 : state.view.height - barH - 72;
-    const ready = Math.max(0, Math.min(1, state.game.cooldownCharge / state.game.cooldownCapacity));
-    const overheated = state.game.cooldownLocked || state.game.cooldownCharge <= 0;
-    const flash = overheated && now < state.game.cooldownFlashUntil;
-    const flashPulse = flash ? 0.5 + Math.sin(now * 0.075) * 0.5 : 0;
-    const accent = overheated ? "#ff4b5d" : "#33f5ca";
-
-    ctx.save();
-    ctx.shadowColor = "#ff4b5d";
-    ctx.shadowBlur = flash ? mobileBlur(8 + flashPulse * 12) : 0;
-    ctx.strokeStyle = overheated
-      ? `rgba(255, ${Math.round(75 + flashPulse * 80)}, ${Math.round(93 + flashPulse * 70)}, ${0.9 + flashPulse * 0.1})`
-      : "rgba(230, 255, 250, 0.62)";
-    ctx.lineWidth = flash ? 2 + flashPulse * 2 : 2;
-    ctx.strokeRect(x, y, barW, barH);
-    ctx.fillStyle = overheated ? `rgba(255, 75, 93, ${0.18 + flashPulse * 0.22})` : "rgba(51, 245, 202, 0.16)";
-    ctx.fillRect(x + 3, y + 3, barW - 6, barH - 6);
-    ctx.fillStyle = accent;
-    ctx.globalAlpha = ready >= 1 ? 1 : 0.82;
-    ctx.fillRect(x + 3, y + 3, (barW - 6) * ready, barH - 6);
-    ctx.restore();
-  }
-
   function drawStoredPowerups(now) {
     const ctx = state.ctx;
     const play = state.view.play;
     const size = Math.max(22, Math.min(34, state.view.width * 0.04));
     const gap = Math.max(7, size * 0.25);
-    if (state.view.compactUi) {
-      drawStoredPowerupsHorizontal(now, size, gap);
-      return;
-    }
 
     const totalH = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
     const startX = state.view.compactUi
-      ? Math.min(play.x + play.w - size, state.view.width - size - 48)
+      ? play.x + play.w - size - 10
       : Math.min(state.view.width - size - 48, play.x + play.w + 20);
     const startY = state.view.compactUi
-      ? Math.min(state.view.height - totalH - 14, play.y + play.h + 14)
+      ? play.y + play.h - totalH - 12
       : Math.min(state.view.height - totalH - 18, play.y + play.h - totalH);
 
     ctx.save();
@@ -716,7 +677,7 @@
     ctx.fillStyle = "rgba(231, 252, 255, 0.82)";
     ctx.shadowColor = "#ffe45c";
     ctx.shadowBlur = mobileBlur(10);
-    ctx.fillText("E", startX + size / 2, startY - Math.max(12, size * 0.45));
+    if (!state.view.compactUi) ctx.fillText("E", startX + size / 2, startY - Math.max(12, size * 0.45));
     ctx.restore();
 
     for (let i = 0; i < config.SPEED_STACK_MAX; i += 1) {
@@ -733,27 +694,9 @@
     }
   }
 
-  function drawStoredPowerupsHorizontal(now, size, gap) {
-    const controls = layout.mobileControls();
-    const totalW = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
-    const startX = Math.max(12, state.view.width - totalW - 12);
-    const startY = controls ? controls.fire.y - controls.radius - size - 12 : state.view.height - size - 72;
-
-    for (let i = 0; i < config.SPEED_STACK_MAX; i += 1) {
-      state.ctx.save();
-      state.ctx.translate(startX + i * (size + gap) + size / 2, startY + size / 2);
-      state.ctx.globalAlpha = i < state.game.speedStacks ? 1 : 0.22;
-      drawPowerIcon("speed", size, i < state.game.speedStacks);
-      state.ctx.restore();
-    }
-
-    if (now < state.game.speedBoostUntil) {
-      const remaining = Math.ceil((state.game.speedBoostUntil - now) / 1000);
-      drawUiText(`${remaining}`, Math.max(10, startX - 8), startY + size / 2, "right");
-    }
-  }
-
   function drawMobileControls() {
+    if (state.view.compactUi) return;
+
     const controls = layout.mobileControls();
     if (!controls) return;
 

@@ -9,6 +9,7 @@ Open `index.html` in a browser to play.
 - Shoot: `Space`
 - Use stored speed boost: `E`
 - Restart after game over: `R`
+- Mobile: use the on-screen D-pad, `FIRE`, and `BOOST` buttons
 
 ## File Map
 

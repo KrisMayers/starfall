@@ -25,12 +25,116 @@ body {
     linear-gradient(135deg, #05060d 0%, #080915 48%, #111016 100%);
 }
 
-canvas {
-  display: block;
+#game-shell {
   width: 100vw;
   height: 100vh;
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
   -webkit-user-select: none;
   user-select: none;
   touch-action: none;
+}
+
+#mobile-controls {
+  display: none;
+}
+
+.control-button {
+  border: 2px solid rgba(127, 245, 255, 0.7);
+  border-radius: 10px;
+  color: #e7fcff;
+  background: linear-gradient(180deg, rgba(15, 25, 46, 0.96), rgba(5, 9, 20, 0.96));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  font: 700 14px "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+  touch-action: none;
+}
+
+.control-button:active,
+.control-button.is-held {
+  background: #132a42;
+  border-color: #33f5ca;
+  color: #ffffff;
+}
+
+@media (max-width: 619px) {
+  body {
+    display: grid;
+    place-items: center;
+    background:
+      linear-gradient(180deg, #121625 0%, #080b14 55%, #05060d 100%);
+  }
+
+  #game-shell {
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: minmax(0, 1fr) 142px;
+    justify-items: center;
+    align-items: center;
+    padding: 10px 10px 12px;
+    gap: 10px;
+  }
+
+  #game {
+    width: min(92vw, 390px, calc((100vh - 174px) * 0.5625));
+    height: auto;
+    max-height: calc(100vh - 174px);
+    aspect-ratio: 9 / 16;
+    border: 4px solid #20283d;
+    border-radius: 6px;
+    background: #070a18;
+    box-shadow: 0 0 0 2px #060913, 0 14px 28px rgba(0, 0, 0, 0.38);
+  }
+
+  #mobile-controls {
+    display: grid;
+    width: min(94vw, 430px);
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 22px;
+  }
+
+  .dpad {
+    width: 132px;
+    height: 132px;
+    display: grid;
+    grid-template-columns: repeat(3, 44px);
+    grid-template-rows: repeat(3, 44px);
+    justify-self: start;
+  }
+
+  .dpad-up { grid-column: 2; grid-row: 1; }
+  .dpad-left { grid-column: 1; grid-row: 2; }
+  .dpad-right { grid-column: 3; grid-row: 2; }
+  .dpad-down { grid-column: 2; grid-row: 3; }
+
+  .action-pad {
+    justify-self: end;
+    display: grid;
+    grid-template-columns: 74px 74px;
+    grid-template-rows: 74px;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .action-fire {
+    border-radius: 50%;
+    border-color: rgba(51, 245, 202, 0.82);
+    color: #bfffee;
+  }
+
+  .action-boost {
+    width: 62px;
+    height: 62px;
+    align-self: end;
+    border-radius: 50%;
+    border-color: rgba(255, 228, 92, 0.8);
+    color: #ffe45c;
+    font-size: 11px;
+  }
 }

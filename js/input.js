@@ -31,9 +31,7 @@
     });
 
     state.canvas.addEventListener("pointerdown", handlePointerDown);
-    state.canvas.addEventListener("pointermove", handlePointerMove);
-    state.canvas.addEventListener("pointerup", handlePointerEnd);
-    state.canvas.addEventListener("pointercancel", handlePointerEnd);
+    bindMobileButtons();
   }
 
   function handlePointerDown(event) {
@@ -41,7 +39,38 @@
     if (!state.view.compactUi) return;
 
     event.preventDefault();
-    const point = pointerPoint(event);
+
+    if (state.game.screen === "start") {
+      layout.resetGame();
+      return;
+    }
+
+    if (state.game.screen === "gameover") {
+      layout.resetGame();
+      return;
+    }
+
+    if (!state.game.running) return;
+  }
+
+  function bindMobileButtons() {
+    const buttons = document.querySelectorAll("[data-control]");
+    for (const button of buttons) {
+      button.addEventListener("pointerdown", handleControlDown);
+      button.addEventListener("pointerup", handleControlEnd);
+      button.addEventListener("pointercancel", handleControlEnd);
+      button.addEventListener("lostpointercapture", handleControlEnd);
+    }
+  }
+
+  function handleControlDown(event) {
+    if (!state.view.compactUi) return;
+
+    event.preventDefault();
+    audio.unlock();
+    const control = event.currentTarget.dataset.control;
+    event.currentTarget.classList.add("is-held");
+    captureElementPointer(event.currentTarget, event);
 
     if (state.game.screen === "start") {
       layout.resetGame();
@@ -55,86 +84,49 @@
 
     if (!state.game.running) return;
 
-    const controls = layout.mobileControls();
-    if (controls && hitCircle(point, controls.fire, controls.radius)) {
+    if (control === "fire") {
       state.touch.firePointerId = event.pointerId;
       state.touch.fireHeld = true;
       state.touch.nextFireAt = performance.now() + 120;
       update.shoot(performance.now());
-      capturePointer(event);
-      return;
-    }
-
-    if (controls && hitCircle(point, controls.boost, controls.radius)) {
+    } else if (control === "boost") {
       update.activateSpeed(performance.now());
-      capturePointer(event);
-      return;
-    }
-
-    if (inPlayfield(point)) {
-      state.touch.movePointerId = event.pointerId;
-      state.touch.moveTarget = clampMoveTarget(point);
-      capturePointer(event);
+    } else {
+      const key = controlKey(control);
+      if (key) state.keys.add(key);
     }
   }
 
-  function handlePointerMove(event) {
-    if (!state.view.compactUi || event.pointerId !== state.touch.movePointerId) return;
+  function handleControlEnd(event) {
+    const control = event.currentTarget.dataset.control;
+    event.currentTarget.classList.remove("is-held");
 
-    event.preventDefault();
-    state.touch.moveTarget = clampMoveTarget(pointerPoint(event));
-  }
-
-  function handlePointerEnd(event) {
-    if (event.pointerId === state.touch.movePointerId) {
-      state.touch.movePointerId = null;
-      state.touch.moveTarget = null;
-    }
-
-    if (event.pointerId === state.touch.firePointerId) {
+    if (control === "fire" && event.pointerId === state.touch.firePointerId) {
       state.touch.firePointerId = null;
       state.touch.fireHeld = false;
+    } else {
+      const key = controlKey(control);
+      if (key) state.keys.delete(key);
     }
 
-    releasePointer(event);
+    releaseElementPointer(event.currentTarget, event);
   }
 
-  function pointerPoint(event) {
-    return { x: event.clientX, y: event.clientY };
+  function controlKey(control) {
+    if (control === "up") return "ArrowUp";
+    if (control === "down") return "ArrowDown";
+    if (control === "left") return "ArrowLeft";
+    if (control === "right") return "ArrowRight";
+    return null;
   }
 
-  function inPlayfield(point) {
-    const play = state.view.play;
-    return point.x >= play.x && point.x <= play.x + play.w &&
-      point.y >= play.y && point.y <= play.y + play.h;
+  function captureElementPointer(element, event) {
+    if (element.setPointerCapture) element.setPointerCapture(event.pointerId);
   }
 
-  function clampMoveTarget(point) {
-    const play = state.view.play;
-    const player = state.game.player;
-    const vertical = layout.playerVerticalBounds();
-    const targetX = Math.max(play.x + player.w / 2, Math.min(play.x + play.w - player.w / 2, point.x));
-    const targetY = state.view.compactUi
-      ? player.y
-      : Math.max(vertical.min, Math.min(vertical.max, point.y));
-
-    return {
-      x: targetX,
-      y: targetY
-    };
-  }
-
-  function hitCircle(point, control, radius) {
-    return Math.hypot(point.x - control.x, point.y - control.y) <= radius;
-  }
-
-  function capturePointer(event) {
-    if (state.canvas.setPointerCapture) state.canvas.setPointerCapture(event.pointerId);
-  }
-
-  function releasePointer(event) {
-    if (state.canvas.releasePointerCapture && state.canvas.hasPointerCapture(event.pointerId)) {
-      state.canvas.releasePointerCapture(event.pointerId);
+  function releaseElementPointer(element, event) {
+    if (element.releasePointerCapture && element.hasPointerCapture(event.pointerId)) {
+      element.releasePointerCapture(event.pointerId);
     }
   }
 

@@ -11,10 +11,11 @@
     const player = game.player;
     const canvas = state.canvas;
     const ctx = state.ctx;
+    const bounds = canvas.getBoundingClientRect();
 
-    view.width = Math.floor(window.innerWidth);
-    view.height = Math.floor(window.innerHeight);
-    view.compactUi = view.width < 620;
+    view.compactUi = window.innerWidth < 620;
+    view.width = Math.max(1, Math.floor(bounds.width || window.innerWidth));
+    view.height = Math.max(1, Math.floor(bounds.height || window.innerHeight));
     view.dpr = Math.max(1, Math.min(view.compactUi ? 1 : 2, window.devicePixelRatio || 1));
     canvas.width = Math.floor(view.width * view.dpr);
     canvas.height = Math.floor(view.height * view.dpr);
@@ -134,6 +135,14 @@
     const player = state.game.player;
     const homeY = playerHomeY();
 
+    if (state.view.compactUi) {
+      const margin = player.h * config.PLAYER_SPRITE_SCALE * 0.55;
+      return {
+        min: play.y + margin,
+        max: play.y + play.h - margin
+      };
+    }
+
     return {
       min: Math.max(play.y + player.h / 2, homeY - play.h * 0.16),
       max: Math.min(play.y + play.h - player.h / 2, homeY + play.h * 0.035)
@@ -144,33 +153,11 @@
     const play = state.view.play;
     const player = state.game.player;
     const playerH = player.h || player.w || 34;
-    if (!state.view.compactUi) return play.y + play.h - playerH - Math.max(18, play.h * 0.035);
-
-    const controls = mobileControls();
-    return controls
-      ? controls.fire.y - controls.radius - playerH - 28
-      : play.y + play.h - playerH - 96;
+    return play.y + play.h - playerH - Math.max(18, play.h * 0.035);
   }
 
   function mobileControls() {
-    const view = state.view;
-    if (!view.compactUi) return null;
-
-    const play = view.play;
-    const radius = Math.max(28, Math.min(38, view.width * 0.085));
-    const y = Math.min(view.height - radius - 12, play.y + play.h + radius + 18);
-
-    return {
-      radius,
-      boost: {
-        x: Math.max(radius + 16, play.x + radius + 10),
-        y
-      },
-      fire: {
-        x: Math.min(view.width - radius - 16, play.x + play.w - radius - 10),
-        y
-      }
-    };
+    return null;
   }
 
   window.StarfallLayout = {
