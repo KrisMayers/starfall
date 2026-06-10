@@ -59,7 +59,7 @@
 
   function update(dt, now) {
     updateStars(dt);
-    updatePlanets(dt);
+    if (!state.view.compactUi) updatePlanets(dt);
 
     if (state.game.running) {
       updateLevelTimer(dt);
@@ -108,7 +108,7 @@
     const game = state.game;
 
     timers.spawnTimer -= dt * 1000;
-    timers.planetTimer -= dt * 1000;
+    if (!state.view.compactUi) timers.planetTimer -= dt * 1000;
 
     if (timers.spawnTimer <= 0) {
       // Multishot makes screen clears easier, so each stack also grows enemy wave size.
@@ -117,7 +117,7 @@
       timers.spawnTimer += levels.spawnCadence(game.level) * (0.72 + Math.random() * 0.56);
     }
 
-    if (timers.planetTimer <= 0) {
+    if (!state.view.compactUi && timers.planetTimer <= 0) {
       spawns.spawnPlanet();
       timers.planetTimer = 13000 + Math.random() * 19000;
     }
@@ -893,7 +893,7 @@
 
   function addExplosion(x, y, size, color) {
     const particles = [];
-    const particleCount = state.view.compactUi ? 9 : 18;
+    const particleCount = state.view.compactUi ? 6 : 18;
     for (let i = 0; i < particleCount; i += 1) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 48 + Math.random() * 150;

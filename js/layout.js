@@ -61,9 +61,9 @@
 
     const layers = state.view.compactUi
       ? [
-        { count: 44, speed: 18, size: 1, alpha: 0.42 },
-        { count: 24, speed: 38, size: 1.5, alpha: 0.68 },
-        { count: 10, speed: 76, size: 2, alpha: 0.9 }
+        { count: 24, speed: 18, size: 1, alpha: 0.42 },
+        { count: 12, speed: 38, size: 1.5, alpha: 0.68 },
+        { count: 6, speed: 76, size: 2, alpha: 0.9 }
       ]
       : [
         { count: 80, speed: 18, size: 1, alpha: 0.45 },

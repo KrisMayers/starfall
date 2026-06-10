@@ -14,9 +14,9 @@
     const view = state.view;
     ctx.clearRect(0, 0, view.width, view.height);
 
-    drawOuter();
+    if (!view.compactUi) drawOuter();
     drawPlayfield(now);
-    drawPlanets();
+    if (!view.compactUi) drawPlanets();
     drawStars();
     drawGameplayObjects(now);
     drawPlayfieldFrame();
@@ -39,6 +39,12 @@
   function drawPlayfield(now) {
     const ctx = state.ctx;
     const play = state.view.play;
+    if (state.view.compactUi) {
+      ctx.fillStyle = "#070a18";
+      ctx.fillRect(play.x, play.y, play.w, play.h);
+      return;
+    }
+
     const gradient = ctx.createLinearGradient(play.x, play.y, play.x, play.y + play.h);
     gradient.addColorStop(0, "#05091d");
     gradient.addColorStop(0.5, "#090a18");
@@ -57,17 +63,19 @@
   function drawStars() {
     const ctx = state.ctx;
     const play = state.view.play;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(play.x, play.y, play.w, play.h);
-    ctx.clip();
+    if (!state.view.compactUi) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(play.x, play.y, play.w, play.h);
+      ctx.clip();
+    }
 
     for (const star of state.stars) {
       ctx.globalAlpha = star.alpha;
       ctx.fillStyle = "#ecfbff";
       ctx.fillRect(Math.round(star.x), Math.round(star.y), star.size, star.size);
     }
-    ctx.restore();
+    if (!state.view.compactUi) ctx.restore();
   }
 
   function drawPlanets() {
@@ -136,17 +144,19 @@
   function drawGameplayObjects(now) {
     const ctx = state.ctx;
     const play = state.view.play;
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(play.x, play.y, play.w, play.h);
-    ctx.clip();
+    if (!state.view.compactUi) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(play.x, play.y, play.w, play.h);
+      ctx.clip();
+    }
     drawPowerups(now);
     drawProjectiles();
     drawEnemies(now);
     if (state.game.player.alive) drawPlayer(now);
     drawComboEffects();
     drawExplosions();
-    ctx.restore();
+    if (!state.view.compactUi) ctx.restore();
   }
 
   function drawEnemies(now) {
