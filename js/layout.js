@@ -120,6 +120,10 @@
     game.shieldLayers = 0;
     game.spreadLevel = 0;
     game.projectileSpeedMultiplier = 1;
+    game.weaponOrbAngle = 0;
+    game.weaponMissileTimer = config.WEAPON_MISSILE_INTERVAL;
+    game.weaponTurretTimers = [0, 0];
+    game.curseStacks = 0;
     game.combo = 0;
     game.speedBoostUntil = 0;
     player.alive = true;

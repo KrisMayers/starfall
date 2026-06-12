@@ -59,13 +59,18 @@
     sounds[name] = audio;
   }
 
+  function soundDisabled() {
+    return state.view.compactUi;
+  }
+
   function unlock() {
+    if (soundDisabled()) return;
     unlocked = true;
     if (state.game.running) startAmbience();
   }
 
   function play(name, options = {}) {
-    if (!unlocked) return;
+    if (!unlocked || soundDisabled()) return;
 
     const base = sounds[name];
     if (!base) return;
@@ -82,7 +87,7 @@
   }
 
   function startLoop(name, options = {}) {
-    if (!unlocked || loopPlaying[name]) return;
+    if (!unlocked || soundDisabled() || loopPlaying[name]) return;
 
     const audio = sounds[name];
     if (!audio) return;
@@ -115,6 +120,11 @@
   }
 
   function syncBossAmbience(active) {
+    if (soundDisabled()) {
+      stopLoop("bossAmbience");
+      return;
+    }
+
     if (active) startLoop("bossAmbience");
     else stopLoop("bossAmbience");
   }

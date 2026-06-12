@@ -14,8 +14,14 @@
     PLAYER_SPRITE_SCALE: 1.7,
     PLAYER_HITBOX_SCALE: 1.25,
 
-    // Each multishot stack adds one projectile to each side of the centre shot.
-    MAX_SPREAD_LEVEL: 3,
+    // Weapon upgrades use the old spreadLevel field for save-state simplicity.
+    MAX_SPREAD_LEVEL: 8,
+    WEAPON_MISSILE_LEVEL: 5,
+    WEAPON_TURRET_RANGE: 150,
+    WEAPON_TURRET_INTERVAL: 800,
+    WEAPON_MISSILE_INTERVAL: 5000,
+    CURSE_SPAWN_BONUS: 0.1,
+    CURSE_SPEED_BONUS: 0.05,
 
     // Combo reward tiers trigger on centre-shot combo milestones.
     COMBO_REWARD_STEP: 10,
@@ -30,9 +36,9 @@
     SPEED_KEY: "KeyE",
 
     enemyKinds: [
-      { type: "green", body: "#21c082", wing: "#0c4f46", glow: "#ffe66d", sizeScale: 1, health: 1, points: 1, speed: 1.08 },
-      { type: "purple", body: "#7f5af0", wing: "#2a1d66", glow: "#62f2ff", sizeScale: 1.2, health: 2, points: 2, speed: 0.95 },
-      { type: "red", body: "#d84b60", wing: "#6a1630", glow: "#ffd166", sizeScale: 1.44, health: 3, points: 3, speed: 0.78 }
+      { type: "green", body: "#21c082", wing: "#0c4f46", glow: "#ffe66d", sprite: "assets/enemy-1.png", spriteFrame: { x: 4, y: 3, w: 18, h: 17 }, sizeScale: 1, health: 1, points: 1, speed: 1.08 },
+      { type: "purple", body: "#7f5af0", wing: "#2a1d66", glow: "#62f2ff", sprite: "assets/enemy-2.png", spriteFrame: { x: 4, y: 3, w: 18, h: 17 }, sizeScale: 1.2, health: 2, points: 2, speed: 0.95 },
+      { type: "red", body: "#d84b60", wing: "#6a1630", glow: "#ffd166", sprite: "assets/enemy-3.png", spriteFrame: { x: 4, y: 3, w: 18, h: 17 }, sizeScale: 1.44, health: 3, points: 3, speed: 0.78 }
     ],
 
     saucerKind: {

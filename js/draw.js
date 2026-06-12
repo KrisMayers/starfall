@@ -8,6 +8,13 @@
   const spawns = window.StarfallSpawns;
   const playerSprite = new Image();
   playerSprite.src = "assets/player.png";
+  const enemySprites = {};
+
+  for (const kind of config.enemyKinds) {
+    if (!kind.sprite) continue;
+    enemySprites[kind.type] = new Image();
+    enemySprites[kind.type].src = kind.sprite;
+  }
 
   function draw(now) {
     const ctx = state.ctx;
@@ -122,15 +129,17 @@
     ctx.save();
     ctx.shadowBlur = mobileBlur(12);
     for (const projectile of state.projectiles) {
-      ctx.shadowColor = projectile.seeker ? "#ffe45c" : projectile.hostile ? "#ffb84d" : "#8efbff";
+      const body = projectile.color || (projectile.seeker ? "#fff5a8" : projectile.hostile ? "#fff0a8" : "#eaffff");
+      const core = projectile.accent || (projectile.seeker ? "#ff4b5d" : projectile.hostile ? "#ff8e3c" : "#63e7ff");
+      ctx.shadowColor = projectile.glow || core;
       const angle = Math.atan2(projectile.vx || 0, -projectile.vy || 1);
       ctx.save();
       ctx.translate(projectile.x, projectile.y);
       ctx.rotate(angle);
-      ctx.fillStyle = projectile.seeker ? "#fff5a8" : projectile.hostile ? "#fff0a8" : "#eaffff";
+      ctx.fillStyle = body;
       ctx.fillRect(-projectile.w / 2, -projectile.h / 2, projectile.w, projectile.h);
-      ctx.fillStyle = projectile.seeker ? "#ff4b5d" : projectile.hostile ? "#ff8e3c" : "#63e7ff";
-      ctx.fillRect(-2, -projectile.h / 2, 4, projectile.h);
+      ctx.fillStyle = core;
+      ctx.fillRect(-Math.max(2, projectile.w * 0.22), -projectile.h / 2, Math.max(4, projectile.w * 0.44), projectile.h);
       if (projectile.seeker) {
         ctx.fillStyle = "#ffe45c";
         ctx.fillRect(-projectile.w / 2 - 4, projectile.h * 0.18, 4, 3);
@@ -151,9 +160,14 @@
       ctx.clip();
     }
     drawPowerups(now);
+    if (state.game.player.alive) drawWeaponGuideLaser();
     drawProjectiles();
     drawEnemies(now);
-    if (state.game.player.alive) drawPlayer(now);
+    if (state.game.player.alive) {
+      drawPlayer(now);
+      drawWeaponOrb();
+      drawWeaponTurrets(now);
+    }
     drawComboEffects();
     drawExplosions();
     if (!state.view.compactUi) ctx.restore();
@@ -164,11 +178,28 @@
     for (const enemy of state.enemies) {
       ctx.save();
       ctx.translate(enemy.x, enemy.y);
-      ctx.rotate(Math.sin(now * 0.001 + enemy.wobble) * 0.08 + enemy.spin * 0.04);
+      ctx.rotate(enemy.type === "saucer"
+        ? Math.sin(now * 0.001 + enemy.wobble) * 0.08 + enemy.spin * 0.04
+        : enemy.rotation || 0);
       if (enemy.type === "saucer") drawSaucer(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow, now);
-      else drawEnemyOrb(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow);
+      else drawEnemySprite(enemy);
       ctx.restore();
     }
+  }
+
+  function drawEnemySprite(enemy) {
+    const sprite = enemySprites[enemy.type];
+    if (!sprite || !sprite.complete || sprite.naturalWidth <= 0) {
+      drawEnemyOrb(enemy.w, enemy.kind.body, enemy.kind.wing, enemy.kind.glow);
+      return;
+    }
+
+    const ctx = state.ctx;
+    const frame = enemy.kind.spriteFrame || { x: 0, y: 0, w: sprite.naturalWidth, h: sprite.naturalHeight };
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(sprite, frame.x, frame.y, frame.w, frame.h, -enemy.w / 2, -enemy.h / 2, enemy.w, enemy.h);
+    ctx.restore();
   }
 
   function drawEnemyOrb(size, body, shade, glow) {
@@ -216,13 +247,16 @@
   function drawPlayer(now) {
     const ctx = state.ctx;
     const game = state.game;
+    const width = game.player.w * config.PLAYER_SPRITE_SCALE;
+    const height = game.player.h * config.PLAYER_SPRITE_SCALE;
     ctx.save();
     ctx.translate(game.player.x, game.player.y);
-    drawShieldLayers(game.player.w * config.PLAYER_SPRITE_SCALE, game.shieldLayers, now);
     if (playerSprite.complete && playerSprite.naturalWidth > 0) {
-      drawPlayerSprite(game.player.w * config.PLAYER_SPRITE_SCALE, game.player.h * config.PLAYER_SPRITE_SCALE);
+      drawPlayerSprite(width, height);
+      drawPlayerShieldOverlay(width, height, game.shieldLayers);
     } else {
       drawPixelShip(game.player.w, "#5af3ff", "#1f6fd1", "#ffef7a", true);
+      drawFallbackShieldOverlay(game.player.w, game.shieldLayers);
     }
     ctx.restore();
   }
@@ -235,22 +269,123 @@
     ctx.restore();
   }
 
-  function drawShieldLayers(playerSize, layers, now) {
+  function drawWeaponGuideLaser() {
+    const game = state.game;
+    if (game.spreadLevel < 2) return;
+
+    const ctx = state.ctx;
+    const play = state.view.play;
+    const player = game.player;
+    ctx.save();
+    ctx.globalAlpha = 0.28;
+    ctx.strokeStyle = "#ff4b5d";
+    ctx.lineWidth = Math.max(1, player.w * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y - player.h / 2);
+    ctx.lineTo(player.x, play.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWeaponOrb() {
+    const game = state.game;
+    if (game.spreadLevel < 4) return;
+
+    const ctx = state.ctx;
+    const player = game.player;
+    const orbit = player.w * 1.55;
+    const size = Math.max(14, player.w * 0.56);
+    const x = player.x + Math.cos(game.weaponOrbAngle) * orbit;
+    const y = player.y + Math.sin(game.weaponOrbAngle) * orbit;
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.shadowColor = "#72fff1";
+    ctx.shadowBlur = mobileBlur(14);
+    ctx.fillStyle = "#dffcff";
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#31e7cf";
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawWeaponTurrets(now) {
+    const game = state.game;
+    if (game.spreadLevel < 7) return;
+
+    const turretCount = Math.min(2, game.spreadLevel - 6);
+    for (let i = 0; i < turretCount; i += 1) {
+      const pos = weaponTurretDrawPosition(i, now);
+      drawMiniTurret(pos.x, pos.y, i === 0 ? -1 : 1);
+    }
+  }
+
+  function weaponTurretDrawPosition(index, now) {
+    const player = state.game.player;
+    const side = index === 0 ? -1 : 1;
+    return {
+      x: player.x + side * player.w * 1.25,
+      y: player.y + Math.sin(now * 0.006 + index * Math.PI) * 3
+    };
+  }
+
+  function drawMiniTurret(x, y, side) {
+    const ctx = state.ctx;
+    const size = Math.max(10, state.game.player.w * 0.34);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "#29344d";
+    ctx.strokeStyle = "#8efbff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(-size * 0.45, -size * 0.35, size * 0.9, size * 0.7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#eaffff";
+    ctx.fillRect(side < 0 ? -size * 0.76 : size * 0.2, -size * 0.1, size * 0.56, size * 0.2);
+    ctx.fillStyle = "#5af3ff";
+    ctx.fillRect(-size * 0.18, -size * 0.15, size * 0.36, size * 0.3);
+    ctx.restore();
+  }
+
+  function drawPlayerShieldOverlay(width, height, layers) {
+    if (layers <= 0) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.ceil(width));
+    canvas.height = Math.max(1, Math.ceil(height));
+    const buffer = canvas.getContext("2d");
+    buffer.imageSmoothingEnabled = false;
+    buffer.drawImage(playerSprite, 0, 0, canvas.width, canvas.height);
+    buffer.globalCompositeOperation = "source-in";
+    buffer.fillStyle = shieldOverlayColor(layers);
+    buffer.fillRect(0, 0, canvas.width, canvas.height);
+
+    const ctx = state.ctx;
+    ctx.save();
+    ctx.shadowColor = "#4ad7ff";
+    ctx.shadowBlur = mobileBlur(7 + layers * 3);
+    ctx.drawImage(canvas, -width / 2, -height / 2, width, height);
+    ctx.restore();
+  }
+
+  function drawFallbackShieldOverlay(size, layers) {
     if (layers <= 0) return;
 
     const ctx = state.ctx;
     ctx.save();
-    ctx.strokeStyle = "#79cfff";
-    ctx.shadowColor = "#4ad7ff";
-    ctx.shadowBlur = mobileBlur(12);
-    ctx.globalAlpha = 0.72 + Math.sin(now * 0.006) * 0.12;
-    for (let i = 0; i < layers; i += 1) {
-      ctx.lineWidth = Math.max(2, playerSize * 0.045);
-      ctx.beginPath();
-      ctx.arc(0, 0, playerSize * (0.72 + i * 0.18), 0, Math.PI * 2);
-      ctx.stroke();
-    }
+    ctx.globalAlpha = 0.2 + layers * 0.1;
+    drawPixelShip(size, "#79dfff", "#348dff", "#e8fbff", true);
     ctx.restore();
+  }
+
+  function shieldOverlayColor(layers) {
+    const alpha = [0, 0.22, 0.38, 0.54][Math.max(0, Math.min(config.SHIELD_STACK_MAX, layers))];
+    return `rgba(83, 210, 255, ${alpha})`;
   }
 
   function drawPixelShip(size, body, wing, glow, upright) {
@@ -310,8 +445,9 @@
     ctx.fillStyle = color;
     if (type === "cooldown") drawCooldownIcon(size);
     else if (type === "speed") drawSpeedIcon(size);
-    else if (type === "spread") drawSpreadIcon(size);
+    else if (type === "spread") drawWeaponUpgradeIcon(size);
     else if (type === "projectileSpeed") drawProjectileSpeedIcon(size);
+    else if (type === "curse") drawCurseIcon(size);
     else drawShieldIcon(size);
   }
 
@@ -335,21 +471,17 @@
     ctx.fill();
   }
 
-  function drawSpreadIcon(size) {
+  function drawWeaponUpgradeIcon(size) {
     const ctx = state.ctx;
-    ctx.fillRect(-size * 0.06, -size * 0.36, size * 0.12, size * 0.5);
-    ctx.fillRect(-size * 0.32, -size * 0.2, size * 0.12, size * 0.46);
-    ctx.fillRect(size * 0.2, -size * 0.2, size * 0.12, size * 0.46);
+    ctx.fillRect(-size * 0.36, -size * 0.1, size * 0.56, size * 0.2);
+    ctx.fillRect(size * 0.12, -size * 0.18, size * 0.24, size * 0.1);
+    ctx.fillRect(-size * 0.22, size * 0.08, size * 0.18, size * 0.28);
+    ctx.fillRect(-size * 0.02, size * 0.08, size * 0.08, size * 0.16);
     ctx.beginPath();
-    ctx.moveTo(-size * 0.38, -size * 0.31);
-    ctx.lineTo(-size * 0.14, -size * 0.16);
-    ctx.lineTo(-size * 0.38, -size * 0.02);
-    ctx.moveTo(0, -size * 0.47);
-    ctx.lineTo(size * 0.16, -size * 0.26);
-    ctx.lineTo(-size * 0.16, -size * 0.26);
-    ctx.moveTo(size * 0.38, -size * 0.31);
-    ctx.lineTo(size * 0.14, -size * 0.16);
-    ctx.lineTo(size * 0.38, -size * 0.02);
+    ctx.moveTo(size * 0.36, -size * 0.13);
+    ctx.lineTo(size * 0.52, -size * 0.03);
+    ctx.lineTo(size * 0.36, size * 0.08);
+    ctx.closePath();
     ctx.fill();
   }
 
@@ -378,6 +510,38 @@
     ctx.lineTo(-size * 0.28, -size * 0.16);
     ctx.closePath();
     ctx.fill();
+  }
+
+  function drawCurseIcon(size) {
+    const ctx = state.ctx;
+    ctx.beginPath();
+    ctx.arc(0, -size * 0.08, size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-size * 0.18, size * 0.14, size * 0.36, size * 0.2);
+    ctx.fillStyle = "#0b1224";
+    ctx.fillRect(-size * 0.17, -size * 0.14, size * 0.11, size * 0.12);
+    ctx.fillRect(size * 0.06, -size * 0.14, size * 0.11, size * 0.12);
+    ctx.fillRect(-size * 0.04, size * 0.02, size * 0.08, size * 0.12);
+    ctx.fillStyle = powerColor("curse");
+    ctx.fillRect(-size * 0.18, size * 0.34, size * 0.08, size * 0.12);
+    ctx.fillRect(-size * 0.04, size * 0.34, size * 0.08, size * 0.12);
+    ctx.fillRect(size * 0.1, size * 0.34, size * 0.08, size * 0.12);
+  }
+
+  function drawCurseReliefIcon(size) {
+    const ctx = state.ctx;
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#0b1224";
+    ctx.fillRect(-size * 0.07, -size * 0.19, size * 0.14, size * 0.38);
+    ctx.fillRect(-size * 0.19, -size * 0.07, size * 0.38, size * 0.14);
+    ctx.fillStyle = powerColor("curseRelief");
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.42, -Math.PI * 0.1, Math.PI * 1.35);
+    ctx.strokeStyle = powerColor("curseRelief");
+    ctx.lineWidth = Math.max(2, size * 0.08);
+    ctx.stroke();
   }
 
   function drawExplosions() {
@@ -410,6 +574,8 @@
       else if (effect.type === "wingman") drawWingmanEffect(effect);
       else if (effect.type === "shockwave") drawShockwaveEffect(effect);
       else if (effect.type === "laser") drawLaserEffect(effect);
+      else if (effect.type === "guideLaser") drawGuideLaserEffect(effect);
+      else if (effect.type === "turretFlash") drawTurretFlashEffect(effect);
       else if (effect.type === "tracer") drawTracerEffect(effect);
     }
   }
@@ -476,6 +642,55 @@
     ctx.fillRect(effect.x - effect.width / 2, play.y, effect.width, play.h);
     ctx.fillStyle = "rgba(245, 255, 255, 0.72)";
     ctx.fillRect(effect.x - effect.width * 0.16, play.y, effect.width * 0.32, play.h);
+    ctx.restore();
+  }
+
+  function drawGuideLaserEffect(effect) {
+    const ctx = state.ctx;
+    const alpha = Math.max(0, 1 - effect.age / effect.life);
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.18;
+    ctx.strokeStyle = "#ff4b5d";
+    ctx.lineWidth = Math.max(1, state.game.player.w * 0.035);
+    ctx.beginPath();
+    ctx.moveTo(effect.x, effect.y2);
+    ctx.lineTo(effect.x, effect.y1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTurretFlashEffect(effect) {
+    const ctx = state.ctx;
+    const alpha = Math.max(0, 1 - effect.age / effect.life);
+    const angle = Math.atan2(effect.y2 - effect.y1, effect.x2 - effect.x1);
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.46;
+    ctx.strokeStyle = "#5af3ff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(effect.x1, effect.y1);
+    ctx.lineTo(effect.x2, effect.y2);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.translate(effect.x1, effect.y1);
+    ctx.rotate(angle);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = "#ffe45c";
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(13, -4);
+    ctx.lineTo(18, 0);
+    ctx.lineTo(13, 4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.fillStyle = "#fff4a3";
+    ctx.fillRect(effect.x2 - 2, effect.y2 - 2, 4, 4);
     ctx.restore();
   }
 
@@ -576,7 +791,10 @@
   function drawUpgradeStats(x, y, compact) {
     const game = state.game;
     const stats = [];
-    if (game.spreadLevel > 0) stats.push({ text: `SHOT x${1 + game.spreadLevel * 2}`, color: "#ff7ab6" });
+    if (game.spreadLevel > 0) {
+      stats.push({ text: `WPN ${game.spreadLevel}/${config.MAX_SPREAD_LEVEL}`, color: "#5cff9f" });
+    }
+    if (game.curseStacks > 0) stats.push({ text: `+${game.curseStacks * 10}%`, color: "#ff4b5d", icon: "curse" });
     if (game.projectileSpeedMultiplier > 1) stats.push({ text: `SPD x${game.projectileSpeedMultiplier.toFixed(2)}`, color: "#ff9f43" });
     if (stats.length === 0) return;
 
@@ -588,10 +806,23 @@
     ctx.font = `700 ${uiFontSize(11)}px "Trebuchet MS", Arial, sans-serif`;
     ctx.shadowBlur = mobileBlur(7);
     for (let i = 0; i < stats.length; i += 1) {
-      if (compact) drawTextBackplate(x, y + i * lineH, ctx.measureText(stats[i].text).width + 12, lineH + 4, "right");
-      ctx.fillStyle = stats[i].color;
-      ctx.shadowColor = stats[i].color;
-      ctx.fillText(stats[i].text, x, y + i * lineH);
+      const stat = stats[i];
+      const textWidth = ctx.measureText(stat.text).width;
+      const iconSize = stat.icon ? uiFontSize(10) : 0;
+      const backplateWidth = textWidth + (stat.icon ? iconSize + 5 : 0) + 12;
+      const lineY = y + i * lineH;
+      if (compact) drawTextBackplate(x, lineY, backplateWidth, lineH + 4, "right");
+      if (stat.icon === "curse") {
+        ctx.save();
+        ctx.translate(x - textWidth - iconSize * 0.7, lineY + uiFontSize(6));
+        ctx.fillStyle = stat.color;
+        ctx.shadowColor = stat.color;
+        drawCurseIcon(iconSize);
+        ctx.restore();
+      }
+      ctx.fillStyle = stat.color;
+      ctx.shadowColor = stat.color;
+      ctx.fillText(stat.text, x, lineY);
     }
     ctx.restore();
   }
@@ -659,38 +890,48 @@
   function drawStoredPowerups(now) {
     const ctx = state.ctx;
     const play = state.view.play;
-    const size = Math.max(22, Math.min(34, state.view.width * 0.04));
-    const gap = Math.max(7, size * 0.25);
-
+    const size = Math.max(14, Math.min(18, state.view.width * 0.024));
+    const gap = Math.max(5, size * 0.24);
+    const columnGap = Math.max(5, size * 0.34);
     const totalH = config.SPEED_STACK_MAX * size + (config.SPEED_STACK_MAX - 1) * gap;
+    const totalW = size * 2 + columnGap;
     const startX = state.view.compactUi
-      ? play.x + play.w - size - 10
-      : Math.min(state.view.width - size - 48, play.x + play.w + 20);
+      ? play.x + play.w - totalW - 10
+      : Math.min(state.view.width - totalW - 38, play.x + play.w + 16);
     const startY = state.view.compactUi
       ? play.y + play.h - totalH - 12
       : Math.min(state.view.height - totalH - 18, play.y + play.h - totalH);
+    const speedX = startX;
+    const shieldX = startX + size + columnGap;
 
     ctx.save();
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = `700 ${uiFontSize(12)}px "Trebuchet MS", Arial, sans-serif`;
+    ctx.font = `700 ${uiFontSize(10)}px "Trebuchet MS", Arial, sans-serif`;
     ctx.fillStyle = "rgba(231, 252, 255, 0.82)";
     ctx.shadowColor = "#ffe45c";
     ctx.shadowBlur = mobileBlur(10);
-    if (!state.view.compactUi) ctx.fillText("E", startX + size / 2, startY - Math.max(12, size * 0.45));
+    if (!state.view.compactUi) ctx.fillText("E", speedX + size / 2, startY - Math.max(10, size * 0.55));
     ctx.restore();
 
     for (let i = 0; i < config.SPEED_STACK_MAX; i += 1) {
+      const y = startY + i * (size + gap) + size / 2;
       ctx.save();
-      ctx.translate(startX + size / 2, startY + i * (size + gap) + size / 2);
+      ctx.translate(speedX + size / 2, y);
       ctx.globalAlpha = i < state.game.speedStacks ? 1 : 0.22;
       drawPowerIcon("speed", size, i < state.game.speedStacks);
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(shieldX + size / 2, y);
+      ctx.globalAlpha = i < state.game.shieldLayers ? 1 : 0.22;
+      drawPowerIcon("invulnerable", size, i < state.game.shieldLayers);
       ctx.restore();
     }
 
     if (now < state.game.speedBoostUntil) {
       const remaining = Math.ceil((state.game.speedBoostUntil - now) / 1000);
-      drawUiText(`${remaining}`, startX + size + 8, startY + totalH / 2, "left");
+      drawUiText(`${remaining}`, startX + totalW + 8, startY + totalH / 2, "left");
     }
   }
 
@@ -849,7 +1090,9 @@
   function powerColor(type) {
     if (type === "cooldown") return "#33f5ca";
     if (type === "speed") return "#ffe45c";
-    if (type === "spread") return "#ff7ab6";
+    if (type === "spread") return "#5cff9f";
+    if (type === "curse") return "#ff4b5d";
+    if (type === "curseRelief") return "#79ffe1";
     if (type === "projectileSpeed") return "#ff9f43";
     return "#9d7dff";
   }

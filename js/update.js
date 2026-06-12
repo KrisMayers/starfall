@@ -26,26 +26,45 @@
       game.cooldownLocked = true;
     }
 
-    // Multishot adds symmetric side shots; only the centre shot is allowed to affect combo.
-    const projectileCount = 1 + game.spreadLevel * 2;
-    const centerIndex = (projectileCount - 1) / 2;
-    const projectileSpeed = 620 * game.projectileSpeedMultiplier;
-
-    for (let i = 0; i < projectileCount; i += 1) {
-      const offset = i - centerIndex;
-      const angle = offset * 0.13;
-      state.projectiles.push({
-        x: player.x + offset * 4,
-        y: player.y - player.h / 2,
-        w: 7,
-        h: 18,
-        vx: Math.sin(angle) * projectileSpeed,
-        vy: -Math.cos(angle) * projectileSpeed,
-        comboEligible: offset === 0
-      });
-    }
-
+    fireWeaponProjectiles(player, game.spreadLevel);
     audio.play("playerShot");
+  }
+
+  function fireWeaponProjectiles(player, level) {
+    const stageLevel = Math.min(level, config.MAX_SPREAD_LEVEL);
+    const apexShot = stageLevel >= 6;
+    const projectileSpeed = 620 * state.game.projectileSpeedMultiplier * (apexShot ? 2 : 1);
+    const upgraded = stageLevel >= 1;
+    const piercing = stageLevel >= 3;
+
+    state.projectiles.push({
+      x: player.x,
+      y: player.y - player.h / 2,
+      w: apexShot ? 9 : piercing ? 8 : 7,
+      h: apexShot ? 30 : piercing ? 26 : 18,
+      vx: 0,
+      vy: -projectileSpeed,
+      damage: upgraded ? 2 : 1,
+      pierce: piercing,
+      maxPiercePasses: apexShot ? Infinity : piercing ? 1 : 0,
+      color: apexShot ? "#fff4a3" : piercing ? "#caffd8" : upgraded ? "#ff6b6b" : "#eaffff",
+      accent: apexShot ? "#ffc928" : piercing ? "#34e87a" : upgraded ? "#d92745" : "#63e7ff",
+      glow: apexShot ? "#ffe45c" : piercing ? "#65ff9c" : upgraded ? "#ff4b5d" : "#8efbff",
+      comboEligible: true,
+      source: "player"
+    });
+  }
+
+  function spawnGuideLaser(player) {
+    const play = state.view.play;
+    state.comboEffects.push({
+      type: "guideLaser",
+      x: player.x,
+      y1: play.y,
+      y2: player.y - player.h / 2,
+      age: 0,
+      life: 95
+    });
   }
 
   function activateSpeed(now) {
@@ -66,6 +85,7 @@
       updateCooldown(dt);
       updateTouchFire(now);
       updatePlayer(dt, now);
+      updateWeaponSystems(dt);
       updateSpawnTimers(dt);
     } else {
       state.timers.gameOverTimer += dt * 1000;
@@ -111,10 +131,9 @@
     if (!state.view.compactUi) timers.planetTimer -= dt * 1000;
 
     if (timers.spawnTimer <= 0) {
-      // Multishot makes screen clears easier, so each stack also grows enemy wave size.
-      const waveSize = 1 + game.spreadLevel;
-      for (let i = 0; i < waveSize; i += 1) spawns.spawnEnemy();
-      timers.spawnTimer += levels.spawnCadence(game.level) * (0.72 + Math.random() * 0.56);
+      const spawnPressure = 1 + game.curseStacks * config.CURSE_SPAWN_BONUS;
+      spawns.spawnEnemy();
+      timers.spawnTimer += levels.spawnCadence(game.level) / spawnPressure * (0.72 + Math.random() * 0.56);
     }
 
     if (!state.view.compactUi && timers.planetTimer <= 0) {
@@ -189,6 +208,119 @@
     touch.nextFireAt = now + 120;
   }
 
+  function updateWeaponSystems(dt) {
+    const game = state.game;
+    if (game.spreadLevel >= 4) {
+      game.weaponOrbAngle += dt * 2.7;
+      updateWeaponOrbCollisions();
+    }
+
+    if (game.spreadLevel >= 7) updateWeaponTurrets(dt);
+
+    if (game.spreadLevel < config.WEAPON_MISSILE_LEVEL) return;
+
+    game.weaponMissileTimer -= dt * 1000;
+    if (game.weaponMissileTimer > 0) return;
+
+    spawnWeaponMissile();
+    game.weaponMissileTimer += config.WEAPON_MISSILE_INTERVAL;
+  }
+
+  function updateWeaponOrbCollisions() {
+    const game = state.game;
+    const player = game.player;
+    const orbRadius = Math.max(7, player.w * 0.28);
+    const orbit = player.w * 1.55;
+    const orbX = player.x + Math.cos(game.weaponOrbAngle) * orbit;
+    const orbY = player.y + Math.sin(game.weaponOrbAngle) * orbit;
+
+    for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = state.enemies[i];
+      if (enemy.orbHitCooldown > 0) continue;
+
+      const reach = orbRadius + enemy.w * 0.45;
+      if (Math.hypot(enemy.x - orbX, enemy.y - orbY) > reach) continue;
+
+      damageEnemyByAmount(enemy, i, 3, "#72fff1", { source: "player" });
+      if (state.enemies.includes(enemy)) enemy.orbHitCooldown = 420;
+    }
+  }
+
+  function updateWeaponTurrets(dt) {
+    const game = state.game;
+    const turretCount = Math.min(2, game.spreadLevel - 6);
+    const reservedTargets = [];
+
+    for (let i = 0; i < turretCount; i += 1) {
+      game.weaponTurretTimers[i] -= dt * 1000;
+      if (game.weaponTurretTimers[i] > 0) continue;
+
+      const turret = weaponTurretPosition(i);
+      const targetInfo = nearestTurretTarget(turret.x, turret.y, reservedTargets);
+      if (!targetInfo) continue;
+
+      reservedTargets.push(targetInfo.enemy);
+      game.weaponTurretTimers[i] += config.WEAPON_TURRET_INTERVAL;
+      state.comboEffects.push({
+        type: "turretFlash",
+        x1: turret.x,
+        y1: turret.y,
+        x2: targetInfo.enemy.x,
+        y2: targetInfo.enemy.y,
+        age: 0,
+        life: 120
+      });
+      damageEnemyByAmount(targetInfo.enemy, targetInfo.index, 0.5, "#ffe45c", { source: "player" });
+    }
+  }
+
+  function weaponTurretPosition(index) {
+    const player = state.game.player;
+    const side = index === 0 ? -1 : 1;
+    return {
+      x: player.x + side * player.w * 1.25,
+      y: player.y + Math.sin(state.timers.runTime * 0.006 + index * Math.PI) * 3
+    };
+  }
+
+  function nearestTurretTarget(x, y, reservedTargets) {
+    let match = null;
+    let matchDistance = Infinity;
+
+    for (let i = 0; i < state.enemies.length; i += 1) {
+      const enemy = state.enemies[i];
+      if (reservedTargets.includes(enemy)) continue;
+      const distance = Math.hypot(enemy.x - x, enemy.y - y);
+      if (distance > config.WEAPON_TURRET_RANGE || distance >= matchDistance) continue;
+      match = { enemy, index: i };
+      matchDistance = distance;
+    }
+
+    return match;
+  }
+
+  function spawnWeaponMissile() {
+    const player = state.game.player;
+    state.projectiles.push({
+      missile: true,
+      seeker: true,
+      forwardOnly: true,
+      source: "player",
+      comboEligible: false,
+      x: player.x,
+      y: player.y - player.h * 0.65,
+      w: 10,
+      h: 22,
+      vx: 0,
+      vy: -470,
+      damage: 2,
+      life: 4200,
+      color: "#fff4a3",
+      accent: "#ffc928",
+      glow: "#ffe45c"
+    });
+  }
+
   function updateProjectiles(dt) {
     const play = state.view.play;
     for (let i = state.projectiles.length - 1; i >= 0; i -= 1) {
@@ -207,23 +339,27 @@
         projectile.x - projectile.w > play.x + play.w + sideMargin;
 
       if (projectile.life <= 0 || (projectile.hostile ? outsideBottom : outsideTop) || outsideSides) {
-        if (!projectile.hostile && outsideTop && projectile.comboEligible) resetCombo();
+        const hitSomething = projectile.hitEnemies && projectile.hitEnemies.length > 0;
+        if (!projectile.hostile && outsideTop && projectile.comboEligible && !hitSomething) resetCombo();
         state.projectiles.splice(i, 1);
       }
     }
   }
 
   function updateSeekerProjectile(projectile, dt) {
-    const target = projectile.target && state.enemies.includes(projectile.target)
+    const currentTarget = projectile.target && state.enemies.includes(projectile.target)
       ? projectile.target
+      : null;
+    const target = currentTarget && (!projectile.forwardOnly || currentTarget.y <= projectile.y)
+      ? currentTarget
       : nearestSeekerTarget(projectile);
     if (!target) return;
     projectile.target = target;
 
     const dx = target.x - projectile.x;
-    const dy = target.y - projectile.y;
+    const dy = projectile.forwardOnly ? Math.min(0, target.y - projectile.y) : target.y - projectile.y;
     const distance = Math.max(1, Math.hypot(dx, dy));
-    const turnForce = 1100;
+    const turnForce = projectile.forwardOnly ? 920 : 1100;
     const maxSpeed = 560;
 
     projectile.vx += (dx / distance) * turnForce * dt;
@@ -234,6 +370,8 @@
       projectile.vx = projectile.vx / speed * maxSpeed;
       projectile.vy = projectile.vy / speed * maxSpeed;
     }
+
+    if (projectile.forwardOnly) projectile.vy = Math.min(projectile.vy, -180);
   }
 
   function nearestSeekerTarget(projectile) {
@@ -241,6 +379,7 @@
     let nearestDistance = Infinity;
 
     for (const enemy of state.enemies) {
+      if (projectile.forwardOnly && enemy.y > projectile.y) continue;
       const distance = Math.hypot(enemy.x - projectile.x, enemy.y - projectile.y);
       if (distance >= nearestDistance) continue;
       nearest = enemy;
@@ -256,20 +395,79 @@
 
     for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
       const enemy = state.enemies[i];
-      enemy.wobble += dt * 3;
+      enemy.wobble += dt * (enemy.type === "saucer" ? 3 : 1.5);
+      if (enemy.bounceCooldown > 0) enemy.bounceCooldown -= dt * 1000;
+      if (enemy.orbHitCooldown > 0) enemy.orbHitCooldown -= dt * 1000;
 
       if (enemy.type === "saucer" && game.running) updateBoss(enemy, dt);
+      else if (enemy.type !== "saucer") updateFloatingEnemy(enemy, dt);
 
-      enemy.x += (enemy.vx + Math.sin(enemy.wobble) * (enemy.type === "saucer" ? 8 : 22)) * dt;
+      enemy.x += (enemy.vx + (enemy.type === "saucer" ? Math.sin(enemy.wobble) * 8 : 0)) * dt;
       enemy.y += enemy.vy * dt;
 
       if (enemy.x < play.x + enemy.w / 2 || enemy.x > play.x + play.w - enemy.w / 2) {
-        enemy.vx *= -1;
+        enemy.vx *= enemy.type === "saucer" ? -1 : -0.88;
         enemy.x = utils.clamp(enemy.x, play.x + enemy.w / 2, play.x + play.w - enemy.w / 2);
       }
 
       if (enemy.y - enemy.h > play.y + play.h + 80) state.enemies.splice(i, 1);
     }
+
+    maybeBounceFloatingEnemies();
+  }
+
+  function updateFloatingEnemy(enemy, dt) {
+    enemy.driftPhase += dt * (0.8 + Math.abs(enemy.driftTurn || 0));
+    enemy.rotation += enemy.spin * dt;
+    enemy.vx += Math.sin(enemy.driftPhase) * 12 * dt + (enemy.driftTurn || 0) * 7 * dt;
+    enemy.vy += Math.cos(enemy.driftPhase * 0.7) * 7 * dt;
+    const curseSpeed = 1 + state.game.curseStacks * config.CURSE_SPEED_BONUS;
+    enemy.vx = utils.clamp(enemy.vx, -92 * curseSpeed, 92 * curseSpeed);
+    enemy.vy = utils.clamp(enemy.vy, 28, levels.enemySpeed(state.game.level) * enemy.kind.speed * curseSpeed * 1.35);
+  }
+
+  function maybeBounceFloatingEnemies() {
+    const enemies = state.enemies;
+    for (let a = 0; a < enemies.length - 1; a += 1) {
+      const first = enemies[a];
+      if (first.type === "saucer" || first.bounceCooldown > 0) continue;
+
+      for (let b = a + 1; b < enemies.length; b += 1) {
+        const second = enemies[b];
+        if (second.type === "saucer" || second.bounceCooldown > 0) continue;
+
+        const minDistance = (first.w + second.w) * 0.38;
+        const dx = second.x - first.x;
+        const dy = second.y - first.y;
+        const distance = Math.hypot(dx, dy);
+        if (distance <= 0 || distance > minDistance) continue;
+        if (!first.bouncy && !second.bouncy && Math.random() > 0.05) continue;
+
+        bounceFloatingEnemies(first, second, dx, dy, distance, minDistance);
+      }
+    }
+  }
+
+  function bounceFloatingEnemies(first, second, dx, dy, distance, minDistance) {
+    const nx = dx / distance;
+    const ny = dy / distance;
+    const overlap = minDistance - distance;
+    first.x -= nx * overlap * 0.5;
+    first.y -= ny * overlap * 0.5;
+    second.x += nx * overlap * 0.5;
+    second.y += ny * overlap * 0.5;
+
+    const firstNormal = first.vx * nx + first.vy * ny;
+    const secondNormal = second.vx * nx + second.vy * ny;
+    const impulse = (secondNormal - firstNormal) * 0.82;
+    first.vx += impulse * nx;
+    first.vy += impulse * ny;
+    second.vx -= impulse * nx;
+    second.vy -= impulse * ny;
+    first.spin *= -1.05;
+    second.spin *= -1.05;
+    first.bounceCooldown = 260;
+    second.bounceCooldown = 260;
   }
 
   function updateBoss(enemy, dt) {
@@ -327,15 +525,9 @@
     for (let i = state.powerups.length - 1; i >= 0; i -= 1) {
       const power = state.powerups[i];
       power.phase += dt * (4.2 + Math.abs(power.turn));
-      adjustPowerupMagnetism(power, dt);
 
-      power.vx += Math.sin(power.phase) * power.turn * 26 * dt;
-      power.vx = utils.clamp(power.vx, -125, 125);
-      power.vy = power.behavior === "attract"
-        ? utils.clamp(power.vy, -130, 175)
-        : utils.clamp(power.vy, 35, 145);
-      power.x += (power.vx + Math.cos(power.phase * 1.3) * 58) * dt;
-      power.y += power.vy * dt;
+      if (power.type === "curse") updateCursePowerup(power, dt);
+      else updateRewardPowerup(power, dt);
 
       if (power.x < play.x + power.w / 2 || power.x > play.x + play.w - power.w / 2) {
         power.vx *= -0.7;
@@ -344,6 +536,32 @@
 
       if (power.y - power.h > play.y + play.h + 40) state.powerups.splice(i, 1);
     }
+  }
+
+  function updateRewardPowerup(power, dt) {
+    adjustPowerupMagnetism(power, dt);
+    power.vx += Math.sin(power.phase) * power.turn * 26 * dt;
+    power.vx = utils.clamp(power.vx, -125, 125);
+    power.vy = power.behavior === "attract"
+      ? utils.clamp(power.vy, -130, 175)
+      : utils.clamp(power.vy, 35, 145);
+    power.x += (power.vx + Math.cos(power.phase * 1.3) * 58) * dt;
+    power.y += power.vy * dt;
+  }
+
+  function updateCursePowerup(power, dt) {
+    const player = state.game.player;
+    const dx = player.x - power.x;
+    const dy = Math.max(0, player.y - power.y);
+    const distance = Math.max(1, Math.hypot(dx, dy));
+    const force = 360;
+
+    power.vx += (dx / distance) * force * dt;
+    if (dy > 0) power.vy += (dy / distance) * force * 0.45 * dt;
+    power.vx = utils.clamp(power.vx, -220, 220);
+    power.vy = utils.clamp(power.vy + 30 * dt, 52, 250);
+    power.x += (power.vx + Math.sin(power.phase * 1.4) * 14) * dt;
+    power.y += power.vy * dt;
   }
 
   function adjustPowerupMagnetism(power, dt) {
@@ -440,7 +658,7 @@
       age: 0,
       life: 140
     });
-    damageEnemyByAmount(targetInfo.enemy, targetInfo.index, 1, "#a8f7ff");
+    damageEnemyByCombo(targetInfo.enemy, targetInfo.index, 1, "#a8f7ff");
   }
 
   function updateWingmanCrash(effect) {
@@ -465,7 +683,7 @@
       if (distance > effect.radius + enemy.w * 0.45) continue;
 
       effect.hitEnemies.push(enemy);
-      damageEnemyByAmount(enemy, i, 2, "#a8f7ff");
+      damageEnemyByCombo(enemy, i, 2, "#a8f7ff");
     }
   }
 
@@ -474,7 +692,7 @@
       const enemy = state.enemies[i];
       const reach = radius + enemy.w * 0.45;
       if (Math.hypot(enemy.x - x, enemy.y - y) > reach) continue;
-      damageEnemyByAmount(enemy, i, amount, color);
+      damageEnemyByCombo(enemy, i, amount, color);
     }
   }
 
@@ -482,7 +700,7 @@
     for (let i = state.enemies.length - 1; i >= 0; i -= 1) {
       const enemy = state.enemies[i];
       if (Math.abs(enemy.x - x) > width / 2 + enemy.w / 2) continue;
-      damageEnemyByAmount(enemy, i, amount, color);
+      damageEnemyByCombo(enemy, i, amount, color);
     }
   }
 
@@ -526,22 +744,37 @@
         continue;
       }
 
+      let removeProjectile = false;
       for (let e = state.enemies.length - 1; e >= 0; e -= 1) {
         const enemy = state.enemies[e];
+        if (projectile.hitEnemies && projectile.hitEnemies.includes(enemy)) continue;
+        if (!utils.rectsOverlap(utils.projectileRect(projectile), utils.entityRect(enemy))) continue;
 
-        if (utils.rectsOverlap(utils.projectileRect(projectile), utils.entityRect(enemy))) {
+        if (projectile.pierce) {
+          if (!projectile.hitEnemies) projectile.hitEnemies = [];
+          projectile.hitEnemies.push(enemy);
+        } else {
+          removeProjectile = true;
+        }
+
+        if (projectile.source === "combo") {
+          damageEnemyByCombo(enemy, e, projectile.damage || 1, projectile.accent || "#ffe45c");
+        } else {
+          if (projectile.comboEligible) incrementCombo();
+          damageEnemyByAmount(enemy, e, projectile.damage || 1, projectile.accent || "#eaffff", { source: "player" });
+        }
+
+        if (projectile.pierce && projectile.hitEnemies.length > (projectile.maxPiercePasses ?? Infinity)) {
+          removeProjectile = true;
+        }
+
+        if (removeProjectile) {
           state.projectiles.splice(p, 1);
-          if (projectile.seeker) damageEnemyByAmount(enemy, e, projectile.damage || 1, "#ffe45c");
-          else {
-            if (projectile.comboEligible) incrementCombo();
-            damageEnemy(enemy, e);
-          }
           break;
         }
       }
     }
   }
-
   function handleHostileProjectile(projectile, index, now) {
     if (!state.game.running || !utils.rectsOverlap(utils.projectileRect(projectile), utils.playerProtectionRect())) return;
 
@@ -580,14 +813,18 @@
 
   function killEnemyByShield(enemy, index) {
     state.game.shieldLayers = Math.max(0, state.game.shieldLayers - 1);
-    destroyEnemy(enemy, index, false);
+    destroyEnemy(enemy, index, { useEnemyColor: false, source: "shield" });
   }
 
   function damageEnemy(enemy, index) {
-    damageEnemyByAmount(enemy, index, 1, "#eaffff");
+    damageEnemyByAmount(enemy, index, 1, "#eaffff", { source: "player" });
   }
 
-  function damageEnemyByAmount(enemy, index, amount, color = "#eaffff") {
+  function damageEnemyByCombo(enemy, index, amount, color) {
+    damageEnemyByAmount(enemy, index, amount, color, { source: "combo" });
+  }
+
+  function damageEnemyByAmount(enemy, index, amount, color = "#eaffff", options = {}) {
     enemy.health -= amount;
     if (enemy.health > 0) {
       addExplosion(enemy.x, enemy.y, enemy.w * 0.42, color);
@@ -595,33 +832,43 @@
       return;
     }
 
-    destroyEnemy(enemy, index, true);
+    destroyEnemy(enemy, index, { useEnemyColor: true, source: options.source || "player" });
   }
 
-  function destroyEnemy(enemy, index, useEnemyColor = true) {
+  function destroyEnemy(enemy, index, options = {}) {
+    const useEnemyColor = typeof options === "boolean" ? options : options.useEnemyColor !== false;
+    const awardKillRewards = typeof options === "object" ? options.awardKillRewards !== false : true;
     const killedType = enemy.type;
     const dropX = enemy.x;
     const dropY = enemy.y;
     const color = useEnemyColor ? enemy.kind.body : "#79ffe1";
     addExplosion(enemy.x, enemy.y, enemy.w * (enemy.type === "saucer" ? 1.7 : 1.2), color);
     state.enemies.splice(index, 1);
-    if (killedType === "saucer") audio.play("bossDeath");
-    else audio.play("enemyDeath", { volume: 0.42 + Math.random() * 0.12 });
-    incrementScore(enemy.points);
-    maybeDropEnemyReward(killedType, dropX, dropY);
+    if (killedType === "saucer") {
+      state.game.curseStacks += 2;
+      audio.play("bossDeath");
+    } else {
+      audio.play("enemyDeath", { volume: 0.42 + Math.random() * 0.12 });
+    }
+    if (awardKillRewards) {
+      incrementScore(enemy.points);
+      maybeDropEnemyReward(killedType, dropX, dropY);
+    }
   }
 
   function maybeDropEnemyReward(type, x, y) {
+    maybeDropCurseReward(x, y);
+    maybeDropCurseReliefReward(x, y);
+    maybeDropWeaponReward(type, x, y);
+
     if (type === "red") {
       maybeDropOneReward(x, y, [
         ["cooldown", 0.075],
-        ["spread", 0.035],
         ["projectileSpeed", 0.05]
       ]);
     } else if (type === "purple") {
       maybeDropOneReward(x, y, [
         ["cooldown", 0.05],
-        ["spread", 0.025],
         ["projectileSpeed", 0.03]
       ]);
     } else if (type === "green") {
@@ -632,10 +879,55 @@
     } else if (type === "saucer") {
       maybeDropOneReward(x, y, [
         ["cooldown", 0.25],
-        ["spread", 0.2],
         ["projectileSpeed", 0.2]
       ], "attract");
     }
+  }
+
+  function maybeDropCurseReward(x, y) {
+    if (Math.random() >= 0.01) return;
+
+    spawns.spawnPowerup({
+      type: "curse",
+      x,
+      y,
+      vy: 82 + Math.random() * 34,
+      behavior: "curse"
+    });
+  }
+
+  function maybeDropCurseReliefReward(x, y) {
+    if (Math.random() >= 0.005) return;
+
+    spawns.spawnPowerup({
+      type: "curseRelief",
+      x,
+      y,
+      vy: 48 + Math.random() * 22,
+      behavior: "attract"
+    });
+  }
+
+  function maybeDropWeaponReward(type, x, y) {
+    if (!canSpawnReward("spread")) return;
+
+    if (type === "saucer") {
+      spawnWeaponUpgradeReward(x, y, "attract");
+      return;
+    }
+
+    if (Math.random() >= 0.005) return;
+    spawnWeaponUpgradeReward(x, y);
+  }
+
+  function spawnWeaponUpgradeReward(x, y, behavior = "repel") {
+    spawns.spawnPowerup({
+      type: "spread",
+      x,
+      y,
+      vy: behavior === "attract" ? 18 : 54 + Math.random() * 24,
+      behavior
+    });
   }
 
   function maybeDropOneReward(x, y, rewardChances, behavior = "repel") {
@@ -713,6 +1005,7 @@
         vx: (i - centerOffset) * 22,
         vy: -430,
         damage,
+        source: "combo",
         target: targets[i] || null,
         life: 3600
       });
@@ -867,14 +1160,30 @@
       state.game.shieldLayers = Math.min(config.SHIELD_STACK_MAX, state.game.shieldLayers + 1);
       audio.play("powerShield");
     } else if (power.type === "spread") {
-      if (state.game.spreadLevel >= config.MAX_SPREAD_LEVEL) return;
-      state.game.spreadLevel += 1;
-      audio.play("powerMultishot");
+      grantWeaponUpgrade();
+    } else if (power.type === "curse") {
+      state.game.curseStacks += 1;
+      audio.play("impact");
+    } else if (power.type === "curseRelief") {
+      state.game.curseStacks = Math.max(0, state.game.curseStacks - 1);
+      audio.play("powerShield");
     } else if (power.type === "projectileSpeed") {
       state.game.projectileSpeedMultiplier *= 1.025;
       audio.play("powerProjectileSpeed");
     }
   }
+
+  function grantWeaponUpgrade() {
+    if (state.game.spreadLevel >= config.MAX_SPREAD_LEVEL) return false;
+
+    state.game.spreadLevel += 1;
+    if (state.game.spreadLevel >= config.WEAPON_MISSILE_LEVEL) {
+      state.game.weaponMissileTimer = Math.min(state.game.weaponMissileTimer, 900);
+    }
+    audio.play("powerMultishot");
+    return true;
+  }
+
 
   function endGame() {
     const game = state.game;

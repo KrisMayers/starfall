@@ -46,15 +46,16 @@
   }
 
   function playerProtectionRect() {
-    const player = state.game.player;
     if (state.game.shieldLayers <= 0) return playerRect();
 
-    const radius = player.w * config.PLAYER_HITBOX_SCALE * (0.72 + (state.game.shieldLayers - 1) * 0.18);
+    const player = state.game.player;
+    const width = player.w * config.PLAYER_SPRITE_SCALE;
+    const height = player.h * config.PLAYER_SPRITE_SCALE;
     return {
-      x: player.x - radius,
-      y: player.y - radius,
-      w: radius * 2,
-      h: radius * 2
+      x: player.x - width / 2,
+      y: player.y - height / 2,
+      w: width,
+      h: height
     };
   }
 

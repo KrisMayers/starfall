@@ -16,7 +16,9 @@
     const play = state.view.play;
     const kind = pickEnemyKind();
     const size = state.game.player.w * kind.sizeScale;
-    const drift = (Math.random() - 0.5) * (55 + state.game.level * 5);
+    const curseSpeed = 1 + state.game.curseStacks * config.CURSE_SPEED_BONUS;
+    const speed = levels.enemySpeed(state.game.level) * kind.speed * curseSpeed * (0.78 + Math.random() * 0.44);
+    const driftAngle = Math.PI / 2 + (Math.random() - 0.5) * 0.82;
 
     state.enemies.push({
       type: kind.type,
@@ -24,10 +26,15 @@
       y: play.y + size / 2,
       w: size,
       h: size,
-      vx: drift,
-      vy: levels.enemySpeed(state.game.level) * kind.speed * (0.85 + Math.random() * 0.45),
+      vx: Math.cos(driftAngle) * speed + (Math.random() - 0.5) * 34,
+      vy: Math.max(34, Math.sin(driftAngle) * speed),
       wobble: Math.random() * Math.PI * 2,
-      spin: (Math.random() - 0.5) * 1.8,
+      driftPhase: Math.random() * Math.PI * 2,
+      driftTurn: (Math.random() - 0.5) * 1.7,
+      rotation: Math.random() * Math.PI * 2,
+      spin: (Math.random() > 0.5 ? 1 : -1) * (0.65 + Math.random() * 2.9),
+      bouncy: Math.random() < 0.22,
+      bounceCooldown: 0,
       health: kind.health,
       maxHealth: kind.health,
       points: kind.points,

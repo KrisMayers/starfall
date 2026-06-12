@@ -53,6 +53,10 @@
       shieldLayers: 0,
       spreadLevel: 0,
       projectileSpeedMultiplier: 1,
+      weaponOrbAngle: 0,
+      weaponMissileTimer: config.WEAPON_MISSILE_INTERVAL,
+      weaponTurretTimers: [0, 0],
+      curseStacks: 0,
       combo: 0,
       speedBoostUntil: 0,
       player: {
